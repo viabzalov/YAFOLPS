@@ -1,6 +1,13 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
+
 module Main where
 
-import Lib
+import Ast
+import Parsers
+import Text.Parsec
+import Text.Pretty.Simple
 
 main :: IO ()
-main = someFunc
+main = print "Hello world!"

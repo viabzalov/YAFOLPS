@@ -35,6 +35,8 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - YAFOLPS
+    - parsec
+    - pretty-simple
 
 tests:
   YAFOLPS-test:
