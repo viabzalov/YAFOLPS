@@ -5,25 +5,25 @@
 module Ast where
 
 -- Variable
-type Var = Integer
+type Var = String
 
--- FunctionSymbol
-data FS = FS {name :: String, terms :: [Term]} deriving Show
+-- FunctionSymbol or PredicateSymbol
+data Symbol = Symbol {name :: String, args :: [Term]}
 
--- PredicateSimbol
-data PS = PS {name :: String, terms :: [Term]} deriving Show
+instance Show Symbol where
+    show (Symbol name args) = show name ++ show args
 
 -- Term
 data Term =
       Variable Var
-    | FunctionSymbol FS
+    | FunctionSymbol Symbol
     deriving Show
 
 -- Formula
 data Formula =
       Top
     | Bottom
-    | PredicateSymbol PS
+    | PredicateSymbol Symbol
     | Neg Formula
     | Conj Formula Formula
     | Disj Formula Formula

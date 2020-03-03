@@ -9,24 +9,14 @@ import Ast
 
 type Parser = Parsec String ()
 
+validChar :: Parser Char
+validChar = letter <|> digit <|> char '_'
+
 parseVar :: Parser Var
-parseVar = read <$> (many1 digit)
+parseVar = (:) <$> upper <*> many validChar
 
-parseFS :: Parser FS
-parseFS = FS <$> ((:) <$> lower <*> many letter) <*> choice [
-        char '(' *> (parseTerm `sepBy` char ',') <* char ')',
-        pure []
-    ]
-
-parsePS :: Parser PS
-parsePS =
-    PS <$>
-    -- name
-    (
-        (:) <$> upper <*> many letter
-    ) <*>
-    -- terms
-    choice [
+parseSymbol :: Parser Symbol
+parseSymbol = Symbol <$> ((:) <$> lower <*> many validChar) <*> choice [
         char '(' *> (parseTerm `sepBy` char ',') <* char ')',
         pure []
     ]
@@ -35,7 +25,7 @@ parseTerm :: Parser Term
 parseTerm =
     choice [
         Variable <$> parseVar,
-        FunctionSymbol <$> parseFS
+        FunctionSymbol <$> parseSymbol
     ]
 
 parseFormula' :: Parser Formula
@@ -47,7 +37,7 @@ parseFormula' =
         char '^' *> pure Top,
         char '_' *> pure Bottom,
         char '-' *> (Neg <$> parseFormula'),
-        PredicateSymbol <$> parsePS
+        PredicateSymbol <$> parseSymbol
     ]
 
 parseFormula :: Parser Formula
