@@ -14,8 +14,6 @@ newtype Disjunct = Disjunct [Liter]
 
 newtype CNF = CNF [Disjunct]
 
-data Quant =
-      Exist Var
-    | Forall Var
+newtype UniversalQuant = UniversalQuant Var
 
-data SSF = SSF {quants :: [Quant], matrix :: CNF}
+data SSF = SSF {quants :: [UniversalQuant], matrix :: CNF}
