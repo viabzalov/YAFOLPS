@@ -12,7 +12,7 @@ type Parser = Parsec String ()
 validChar :: Parser Char
 validChar = letter <|> digit <|> char '_'
 
-parseVar :: Parser Var
+parseVar :: Parser String
 parseVar = (:) <$> upper <*> many validChar
 
 parseSymbol :: Parser Symbol

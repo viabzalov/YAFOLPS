@@ -7,13 +7,18 @@ module Ssf where
 import Ast
 
 data Liter =
-      PredicateSymbol Symbol
-    | NegPredicateSymbol Symbol
+      PS {getPS :: Symbol}
+    | NegPS {getPS :: Symbol}
+    deriving Show
 
-newtype Disjunct = Disjunct [Liter]
+type Disjunct = [Liter]
 
-newtype CNF = CNF [Disjunct]
+type Conjunct = [Liter]
 
-newtype UniversalQuant = UniversalQuant Var
+type DNF = [Conjunct]
 
-data SSF = SSF {quants :: [UniversalQuant], matrix :: CNF}
+type CNF = [Disjunct]
+
+type UniversalQuant = String
+
+data SSF = SSF {quants :: [UniversalQuant], matrix :: CNF} deriving Show

@@ -4,20 +4,28 @@
 
 module Ast where
 
--- Variable
-type Var = String
-
 -- FunctionSymbol or PredicateSymbol
 data Symbol = Symbol {name :: String, args :: [Term]}
 
 instance Show Symbol where
     show (Symbol name args) = show name ++ show args
 
+instance Eq Symbol where
+    (==) (Symbol name_1 args_1) (Symbol name_2 args_2) =
+        name_1 == name_2 && args_1 == args_2
+
 -- Term
 data Term =
-      Variable Var
+      Variable String
     | FunctionSymbol Symbol
     deriving Show
+
+instance Eq Term where
+    (==) (Variable name_1) (Variable name_2) =
+        name_1 == name_2
+    (==) (FunctionSymbol symbol_1) (FunctionSymbol symbol_2) =
+        symbol_1 == symbol_2
+    (==) _ _ = False
 
 -- Formula
 data Formula =
@@ -28,6 +36,6 @@ data Formula =
     | Conj Formula Formula
     | Disj Formula Formula
     | Impl Formula Formula 
-    | Exist Var Formula
-    | Forall Var Formula
+    | Exist String Formula
+    | Forall String Formula
     deriving Show
