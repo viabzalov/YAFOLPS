@@ -7,6 +7,11 @@ module ConverterToSSF where
 
 import Ast
 import Ssf
+import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.Class
+
+type Replacements = [(String, Term)]
+type ForallVars = [String]
 
 (.>) :: (a -> b) -> (b -> c) -> a -> c
 f .> g = g . f
@@ -28,41 +33,67 @@ replace f x' (x : xs) =
         x : replace f x' xs
 
 renameBoundVariables :: Formula -> Formula
-renameBoundVariables = renamingInFormula [] where
-    renamingInFormula :: [(String, String)] -> Formula -> Formula
-    renamingInFormula changes = \case
-        Top -> Top
-        Bottom -> Bottom
-        PredicateSymbol (Symbol name args) ->
-            PredicateSymbol (Symbol name (renamingInTerm changes <$> args))
-        Neg f ->
-            Neg (renamingInFormula changes f)
-        Conj f1 f2 ->
-            Conj (renamingInFormula changes f1) (renamingInFormula changes f2)
-        Disj f1 f2 ->
-            Disj (renamingInFormula changes f1) (renamingInFormula changes f2)
-        Impl f1 f2 ->
-            Impl (renamingInFormula changes f1) (renamingInFormula changes f2)
-        Exist v f ->
-            case find (fst .> (== v)) changes of
-                Nothing -> let v' = "(" ++ v ++ ")" in
-                    Exist v' (renamingInFormula ((v, v') : changes) f)
-                Just (_, v') -> let v'' = v' ++ "'" in
-                    Exist v'' (renamingInFormula (replace (fst .> (== v)) (v, v'') changes) f)
-        Forall v f ->
-            case find (fst .> (== v)) changes of
-                Nothing -> let v' = "(" ++ v ++ ")" in
-                    Forall v' (renamingInFormula ((v, v') : changes) f)
-                Just (_, v') -> let v'' = v' ++ "'" in
-                    Forall v'' (renamingInFormula (replace (fst .> (== v)) (v, v'') changes) f)
-    renamingInTerm :: [(String, String)] -> Term -> Term
-    renamingInTerm changes = \case
-        Variable v ->
-            case find (fst .> (== v)) changes of
-                Nothing -> Variable v
-                Just (_, v') -> Variable v'
-        FunctionSymbol (Symbol name args) ->
-            FunctionSymbol (Symbol name (renamingInTerm changes <$> args))
+renameBoundVariables = renamingInFormula .> flip evalState [] where
+    renamingInFormula :: Formula -> State Replacements Formula
+    renamingInFormula formula = case formula of
+        Top -> return Top
+        Bottom -> return Bottom
+        PredicateSymbol (Symbol name args) -> do
+            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            return $ PredicateSymbol $ Symbol name args'
+        Neg f -> do
+            f' <- renamingInFormula f
+            return $ Neg f'
+        Conj f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Conj f1' f2'
+        Disj f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Disj f1' f2'
+        Impl f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Impl f1' f2'
+        Exist v f -> do
+            replacements <- get
+            case find (fst .> (== v)) replacements of
+                Nothing -> do
+                    let v' = "(" ++ v ++ ")"
+                    modify ((v, Variable v') :)
+                    f' <- renamingInFormula f
+                    return $ Exist v' f'
+                Just (_, Variable v') -> do
+                    let v'' = v' ++ "'"
+                    modify $ replace (fst .> (== v)) (v, Variable v'')
+                    f' <- renamingInFormula f
+                    return $ Exist v'' f'
+                Just (_, FunctionSymbol fs) -> error "Replacement on Function Symbol is not meant"
+        Forall v f -> do
+            replacements <- get
+            case find (fst .> (== v)) replacements of
+                Nothing -> do
+                    let v' = "(" ++ v ++ ")"
+                    modify ((v, Variable v') :)
+                    f' <- renamingInFormula f
+                    return $ Forall v' f'
+                Just (_, Variable v') -> do
+                    let v'' = v' ++ "'"
+                    modify $ replace (fst .> (== v)) (v, Variable v'')
+                    f' <- renamingInFormula f
+                    return $ Forall v'' f'
+                Just (_, FunctionSymbol fs) -> error "Replacement on Function Symbol is not meant"
+    renamingInTerm :: Term -> State Replacements Term
+    renamingInTerm = \case
+        Variable v -> do
+            replacements <- get
+            case find (fst .> (== v)) replacements of
+                Nothing -> return $ Variable v
+                Just (_, t) -> return t
+        FunctionSymbol (Symbol name args) -> do
+            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            return $ FunctionSymbol $ Symbol name args'
 
 takeOutQuants :: Formula -> Formula
 takeOutQuants = \case
@@ -109,36 +140,48 @@ takeOutQuants = \case
     Forall v f -> Forall v (takeOutQuants f)
 
 deleteExistQuants :: Formula -> Formula
-deleteExistQuants = renamingVarsInFormula [] [] where
-    renamingVarsInFormula :: [String] -> [(String, Term)] -> Formula -> Formula
-    renamingVarsInFormula forallVars changes = \case
-        Top -> Top
-        Bottom -> Bottom
-        PredicateSymbol (Symbol name args) ->
-            PredicateSymbol (Symbol name (renamingVarsInTerm changes <$> args))
-        Neg f ->
-            Neg (renamingVarsInFormula forallVars changes f)
-        Conj f1 f2 ->
-            Conj (renamingVarsInFormula forallVars changes f1)
-                 (renamingVarsInFormula forallVars changes f2)
-        Disj f1 f2 ->
-            Disj (renamingVarsInFormula forallVars changes f1)
-                 (renamingVarsInFormula forallVars changes f2)
-        Impl f1 f2 ->
-            Impl (renamingVarsInFormula forallVars changes f1)
-                 (renamingVarsInFormula forallVars changes f2)
-        Exist v f -> let t = FunctionSymbol (Symbol ("Sko" ++ v) (Variable <$> forallVars)) in
-            renamingVarsInFormula forallVars ((v, t) : changes) f
-        Forall v f ->
-            Forall v (renamingVarsInFormula (forallVars ++ [v]) changes f)
-    renamingVarsInTerm :: [(String, Term)] -> Term -> Term
-    renamingVarsInTerm changes = \case
-        Variable v ->
-            case find (fst .> (== v)) changes of
-                Nothing -> Variable v
-                Just (_, t) -> t
-        FunctionSymbol (Symbol name args) ->
-            FunctionSymbol (Symbol name (renamingVarsInTerm changes <$> args))
+deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState [] where
+    renamingInFormula :: Formula -> StateT Replacements (State ForallVars) Formula
+    renamingInFormula = \case
+        Top -> return Top
+        Bottom -> return Bottom
+        PredicateSymbol (Symbol name args) -> do
+            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            return $ PredicateSymbol (Symbol name args')
+        Neg f -> do
+            f' <- renamingInFormula f
+            return $ Neg f'
+        Conj f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Conj f1' f2'
+        Disj f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Disj f1' f2'
+        Impl f1 f2 -> do
+            f1' <- renamingInFormula f1
+            f2' <- renamingInFormula f2
+            return $ Impl f1' f2'
+        Exist v f -> do
+            forallVars <- lift $ get
+            let t = FunctionSymbol (Symbol ("Sko" ++ v) (Variable <$> forallVars))
+            modify $ ((v, t) :)
+            renamingInFormula f
+        Forall v f -> do
+            lift $ modify $ (v :)
+            f' <- renamingInFormula f
+            return $ Forall v f'
+    renamingInTerm :: Term -> StateT Replacements (State ForallVars) Term
+    renamingInTerm = \case
+        Variable v -> do
+            replacements <- get
+            case find (fst .> (== v)) replacements of
+                Nothing -> return $ Variable v
+                Just (_, t) -> return t
+        FunctionSymbol (Symbol name args) -> do
+            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            return $ FunctionSymbol (Symbol name args')
 
 convertToCNF :: Formula -> CNF
 convertToCNF = formula2CNF False .> simplifyCNF where

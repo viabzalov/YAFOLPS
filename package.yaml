@@ -37,6 +37,7 @@ executables:
     - YAFOLPS
     - parsec
     - pretty-simple
+    - transformers
 
 tests:
   YAFOLPS-test:
