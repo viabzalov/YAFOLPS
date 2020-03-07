@@ -9,20 +9,13 @@ import Ast
 import Ssf
 import Control.Monad.Trans.State.Lazy
 import Control.Monad.Trans.Class
+import Data.List
 
 type Replacements = [(String, Term)]
 type ForallVars = [String]
 
 (.>) :: (a -> b) -> (b -> c) -> a -> c
 f .> g = g . f
-
-find :: (a -> Bool) -> [a] -> Maybe a
-find f [] = Nothing
-find f (x : xs) =
-    if f x then
-        Just x
-    else
-        find f xs
 
 replace :: (a -> Bool) -> a -> [a] -> [a]
 replace f x' [] = []
@@ -184,7 +177,7 @@ deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState []
             return $ FunctionSymbol (Symbol name args')
 
 convertToCNF :: Formula -> CNF
-convertToCNF = formula2CNF False .> simplifyCNF where
+convertToCNF = formula2CNF False .> simplify where
     formula2CNF :: Bool -> Formula -> CNF
     formula2CNF isNeg = \case
         Top -> if isNeg then [[]] else []
@@ -208,25 +201,24 @@ convertToCNF = formula2CNF False .> simplifyCNF where
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
     _NF2_NF :: [[Liter]] -> [[Liter]]
-    _NF2_NF [] = [[]]
-    _NF2_NF (x : xs) = concat $ (\y -> (: y) <$> x) <$> _NF2_NF xs
-    simplifyCNF :: CNF -> CNF
-    simplifyCNF [] = []
-    simplifyCNF (x : xs) = let xs' = simplifyCNF xs in
-        case simplifyDisjunct x [] of
+    _NF2_NF = simplify .> foldr (\x y -> concat $ (\z -> (: z) <$> x) <$> y) [[]] .> simplify
+    simplify :: [[Liter]] -> [[Liter]]
+    simplify [] = []
+    simplify (x : xs) = let xs' = simplify xs in
+        case simplify' x [] of
             [] -> xs'
             x' -> x' : xs'
-    simplifyDisjunct :: Disjunct -> Disjunct -> Disjunct
-    simplifyDisjunct [] ans = ans
-    simplifyDisjunct (x@(PS ps) : xs) ans =
+    simplify' :: [Liter] -> [Liter] -> [Liter]
+    simplify' [] ans = ans
+    simplify' (x@(PS ps) : xs) ans =
         case find (getPS .> (== ps)) xs of
-            Nothing -> simplifyDisjunct xs (x : ans)
-            Just (PS _) -> simplifyDisjunct xs ans
+            Nothing -> simplify' xs (x : ans)
+            Just (PS _) -> simplify' xs ans
             Just (NegPS _) -> []
-    simplifyDisjunct (x@(NegPS ps) : xs) ans =
+    simplify' (x@(NegPS ps) : xs) ans =
         case find (getPS .> (== ps)) xs of
-            Nothing -> simplifyDisjunct xs (x : ans)
-            Just (NegPS _) -> simplifyDisjunct xs ans
+            Nothing -> simplify' xs (x : ans)
+            Just (NegPS _) -> simplify' xs ans
             Just (PS _) -> []
 
 convertToSSF :: Formula -> SSF
