@@ -1,15 +1,15 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
 
 module ConverterToSSF where
 
-import Ast
-import Ssf
-import Control.Monad.Trans.State.Lazy
-import Control.Monad.Trans.Class
-import Data.List
+import           Ast
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State.Lazy
+import           Data.List
+import           Ssf
 
 type Replacements = [(String, Term)]
 type ForallVars = [String]
@@ -82,7 +82,7 @@ renameBoundVariables = renamingInFormula .> flip evalState [] where
         Variable v -> do
             replacements <- get
             case find (fst .> (== v)) replacements of
-                Nothing -> return $ Variable v
+                Nothing     -> return $ Variable v
                 Just (_, t) -> return t
         FunctionSymbol (Symbol name args) -> do
             args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
@@ -106,9 +106,9 @@ takeOutQuants = \case
             Forall v f1' -> Forall v (takeOutInConj f1' f2)
             _ ->
                 case f2 of
-                    Exist v f2' -> Exist v (takeOutInConj f1 f2')
+                    Exist v f2'  -> Exist v (takeOutInConj f1 f2')
                     Forall v f2' -> Forall v (takeOutInConj f1 f2')
-                    _ -> Conj f1 f2
+                    _            -> Conj f1 f2
     Disj f1 f2 -> takeOutInDisj (takeOutQuants f1) (takeOutQuants f2) where
         takeOutInDisj :: Formula -> Formula -> Formula
         takeOutInDisj f1 f2 = case f1 of
@@ -116,9 +116,9 @@ takeOutQuants = \case
             Forall v f1' -> Forall v (takeOutInDisj f1' f2)
             _ ->
                 case f2 of
-                    Exist v f2' -> Exist v (takeOutInDisj f1 f2')
+                    Exist v f2'  -> Exist v (takeOutInDisj f1 f2')
                     Forall v f2' -> Forall v (takeOutInDisj f1 f2')
-                    _ -> Disj f1 f2
+                    _            -> Disj f1 f2
     Impl f1 f2 -> takeOutInImpl (takeOutQuants f1) (takeOutQuants f2) where
         takeOutInImpl :: Formula -> Formula -> Formula
         takeOutInImpl f1 f2 = case f1 of
@@ -126,9 +126,9 @@ takeOutQuants = \case
             Forall v f1' -> Exist v (takeOutInImpl f1' f2)
             _ ->
                 case f2 of
-                    Exist v f2' -> Exist v (takeOutInImpl f1 f2')
+                    Exist v f2'  -> Exist v (takeOutInImpl f1 f2')
                     Forall v f2' -> Forall v (takeOutInImpl f1 f2')
-                    _ -> Impl f1 f2
+                    _            -> Impl f1 f2
     Exist v f -> Exist v (takeOutQuants f)
     Forall v f -> Forall v (takeOutQuants f)
 
@@ -170,7 +170,7 @@ deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState []
         Variable v -> do
             replacements <- get
             case find (fst .> (== v)) replacements of
-                Nothing -> return $ Variable v
+                Nothing     -> return $ Variable v
                 Just (_, t) -> return t
         FunctionSymbol (Symbol name args) -> do
             args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
@@ -212,14 +212,14 @@ convertToCNF = formula2CNF False .> simplify where
     simplify' [] ans = ans
     simplify' (x@(PS ps) : xs) ans =
         case find (getPS .> (== ps)) xs of
-            Nothing -> simplify' xs (x : ans)
-            Just (PS _) -> simplify' xs ans
+            Nothing        -> simplify' xs (x : ans)
+            Just (PS _)    -> simplify' xs ans
             Just (NegPS _) -> []
     simplify' (x@(NegPS ps) : xs) ans =
         case find (getPS .> (== ps)) xs of
-            Nothing -> simplify' xs (x : ans)
+            Nothing        -> simplify' xs (x : ans)
             Just (NegPS _) -> simplify' xs ans
-            Just (PS _) -> []
+            Just (PS _)    -> []
 
 convertToSSF :: Formula -> SSF
 convertToSSF = renameBoundVariables .> takeOutQuants .> deleteExistQuants .> constructSSF where

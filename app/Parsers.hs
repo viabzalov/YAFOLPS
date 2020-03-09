@@ -1,11 +1,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
 
 module Parsers where
 
-import Text.Parsec
-import Ast
+import           Ast
+import           Text.Parsec
 
 type Parser = Parsec String ()
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
 
 module Ast where
@@ -32,7 +32,7 @@ data Formula =
     | Neg Formula
     | Conj Formula Formula
     | Disj Formula Formula
-    | Impl Formula Formula 
+    | Impl Formula Formula
     | Exist String Formula
     | Forall String Formula
     deriving Show

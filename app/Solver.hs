@@ -31,8 +31,8 @@ dependsTermOnVariable _ _ = False
 -- dependsTermOnVariable (Variable "X") (FunctionSymbol (Symbol "f" [Variable "Y"]))
 -- answer: False
 
--- dependsTermOnVariable (Variable "Y") (Variable "X")                               
--- answer : False 
+-- dependsTermOnVariable (Variable "Y") (Variable "X")
+-- answer : False
 
 -- dependsTermOnVariable (FunctionSymbol (Symbol "f" [Variable "X"])) (FunctionSymbol (Symbol "g" [Variable "Y"]))
 -- answer : False
@@ -64,7 +64,7 @@ compareTwoLiters :: (Liter, Liter) -> Bool
 compareTwoLiters ((PS smbl1), (NegPS smbl2)) = compareTwoLiters ((PS smbl1), (PS smbl2))
 compareTwoLiters ((NegPS smbl1), (PS smbl2)) = compareTwoLiters ((PS smbl1), (PS smbl2))
 compareTwoLiters ((NegPS smbl1), (NegPS smbl2)) = compareTwoLiters ((PS smbl1), (PS smbl2))
-compareTwoLiters ((PS smbl1), (PS smbl2)) = 
+compareTwoLiters ((PS smbl1), (PS smbl2)) =
     compareTwoTerms ((FunctionSymbol smbl1), (FunctionSymbol smbl2))
 
 -- | Returns first rename of variable in one pair of comparable terms, otherwise Nothing
@@ -274,7 +274,7 @@ unifyTwoLiters ltr1@(PS smbl1@(Symbol name1 args1)) ltr2@(PS smbl2@(Symbol name2
 -- | Rename disjunct by renames of two unifiable liters
 renameDisjunctByTwoLiters :: Disjunct -> (Liter, Liter) -> Disjunct
 renameDisjunctByTwoLiters [] _ = []
-renameDisjunctByTwoLiters disj (ltr1, ltr2) = 
+renameDisjunctByTwoLiters disj (ltr1, ltr2) =
     if ltr1 == ltr2 then disj else ans where
         ans = renameDisjunctByTwoLiters (disj') (ltr1', ltr2')
         disj' = renameTermInDisjunct disj pr'
@@ -291,8 +291,8 @@ unifyTwoDisjuncts ([], []) = Nothing
 unifyTwoDisjuncts ([], _ ) = Nothing
 unifyTwoDisjuncts (_,  []) = Nothing
 unifyTwoDisjuncts (disj1@(ltr1:ltrs1), disj2@(ltr2:ltrs2)) =
-    if disj1 == disj2 then Just $ (disj1, Nothing) else 
-        case (unifyTwoLiters' ltr1 ltr2) of 
+    if disj1 == disj2 then Just $ (disj1, Nothing) else
+        case (unifyTwoLiters' ltr1 ltr2) of
             Just x -> Just $ (renameDisjunctByTwoLiters (ltrs1 ++ ltrs2) (ltr1, ltr2), Just $ (ltr1, ltr2))
             Nothing -> case (unifyTwoDisjuncts (ltrs1, disj2)) of
                 Just (x, Just pr) -> Just $ (renameDisjunctByTwoLiters (ltr1:x) pr, Just $ pr)
@@ -304,15 +304,15 @@ unifyTwoDisjuncts (disj1@(ltr1:ltrs1), disj2@(ltr2:ltrs2)) =
 -- | Make new CNF by unify some of two disjuncts of CNF
 newCNF :: CNF -> [(Disjunct, Disjunct)] -> CNF
 newCNF cnf [] = cnf
-newCNF cnf ((disj1, disj2):prs) = 
+newCNF cnf ((disj1, disj2):prs) =
     case (unifyTwoDisjuncts (disj1, disj2)) of
         Just (x, Just pr) -> (delete disj1 (delete disj2 cnf)) `union` [x]
-        otherwise -> newCNF cnf prs
+        otherwise         -> newCNF cnf prs
 
 -- | Remove all empty disjuncts
 normalizeCNF :: CNF -> CNF
 normalizeCNF [] = []
-normalizeCNF (disj:disjs) = 
+normalizeCNF (disj:disjs) =
     if disj == [] then cnf' else disj:cnf' where
         cnf' = normalizeCNF disjs
 
@@ -321,9 +321,9 @@ solveCNF :: CNF -> Bool
 solveCNF [] = False
 solveCNF cnf = if cnf == cnf' then True else (solveCNF cnf') where
     cnf' = normalizeCNF (newCNF cnf prs)
-    prs = [(x, y) | x <- cnf, y <- cnf, x /= y] 
+    prs = [(x, y) | x <- cnf, y <- cnf, x /= y]
 
 -- | Solve a theorem represented by its SSF
 solve :: SSF -> Bool
-solve (SSF quants []) = True
+solve (SSF quants [])     = True
 solve (SSF quants matrix) = solveCNF (uniqueVariablesInCNF matrix)

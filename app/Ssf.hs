@@ -1,10 +1,10 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
 
 module Ssf where
 
-import Ast
+import           Ast
 
 data Liter =
       PS {getPS :: Symbol}

@@ -1,20 +1,21 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns #-}
 
 module Main where
 
-import Parsers
-import ConverterToSSF
-import Text.Parsec
-import Text.Pretty.Simple
-import System.Environment
-import Data.Maybe
-import Data.List
+import           ConverterToSSF
+import           Data.List
+import           Data.Maybe
+import           Parsers
+import           Solver
+import           System.Environment
+import           Text.Parsec
+import           Text.Pretty.Simple
 
 main :: IO ()
 main = do
-    
+
     args <- getArgs
 
     formula <- case getInputFile args of
@@ -25,19 +26,19 @@ main = do
             return formula
         Just nameFile ->
             readFile nameFile
-    
+
     if getIsPrintedFormula args then do
         putStrLn "Entered formula:"
         print formula
         putStrLn ""
     else return ()
-    
+
     ast <- case parse parseFormula "" formula of
         Left err -> do
             print err
             fail ""
         Right ast -> return ast
-    
+
     if getIsPrintedAST args then do
         putStrLn "Obtained AST:"
         pPrint ast
@@ -51,7 +52,15 @@ main = do
         pPrint ssf
         putStrLn ""
     else return ()
-    
+
+    let result = if (solve ssf) == True then "SAT" else "UNSAT"
+
+    if getIsPrintedResult args then do
+        putStrLn "FOL Solver result:"
+        pPrint result
+        putStrLn ""
+    else return ()
+
     where
         getInputFile :: [String] -> Maybe FilePath
         getInputFile args =
@@ -62,7 +71,7 @@ main = do
                         error "File was not defined"
                     else
                         Just (args !! (ind + 1))
-        
+
         getBoolFromArgs :: String -> Char -> [String] -> Bool
         getBoolFromArgs nameOption charOption args = isJust $
             find
@@ -76,12 +85,15 @@ main = do
                     arg == nameOption
                 )
                 args
-        
+
         getIsPrintedFormula :: [String] -> Bool
         getIsPrintedFormula = getBoolFromArgs "--print-formula" 'f'
-        
+
         getIsPrintedAST :: [String] -> Bool
         getIsPrintedAST = getBoolFromArgs "--print-ast" 'a'
-        
+
         getIsPrintedSSF :: [String] -> Bool
         getIsPrintedSSF = getBoolFromArgs "--print-ssf" 's'
+
+        getIsPrintedResult :: [String] -> Bool
+        getIsPrintedResult = getBoolFromArgs "--print-solution" 'r'
