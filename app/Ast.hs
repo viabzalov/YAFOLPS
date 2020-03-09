@@ -5,10 +5,7 @@
 module Ast where
 
 -- FunctionSymbol or PredicateSymbol
-data Symbol = Symbol {name :: String, args :: [Term]}
-
-instance Show Symbol where
-    show (Symbol name args) = show name ++ show args
+data Symbol = Symbol {name :: String, args :: [Term]} deriving Show
 
 instance Eq Symbol where
     (==) (Symbol name_1 args_1) (Symbol name_2 args_2) =

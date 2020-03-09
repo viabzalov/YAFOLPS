@@ -9,7 +9,7 @@ import Ast
 data Liter =
       PS {getPS :: Symbol}
     | NegPS {getPS :: Symbol}
-    deriving Show
+    deriving (Eq, Show)
 
 type Disjunct = [Liter]
 
