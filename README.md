@@ -1,6 +1,12 @@
 # YAFOLPS (Yet Another First-Order Logic Problem Solver)
 
-## EBNF (Extended Backus–Naur form):
+#### Semester project on mathematical logic of the fourth semester of Software Engineering, Department of System Programming, Faculty of Mathematics and Mechanics, St. Petersburg State University. 
+
+## Goal
+
+#### Implement a resolution method for first-order logic.
+
+## EBNF (Extended Backus–Naur form)
 
 ```
 <Forall> ::= "!"
@@ -27,11 +33,11 @@
   | <Quantifier> <Var> "(" <Formula> ")" 
 ```
 
-# Usage: 
+# Usage
 
 ## ``stack build && stack exec -- YAFOLPS-exe <args>``
 
-## Args:
+## Args
 
 * ``--input-file filename / --i filename -- Reads a formula from a file. Without specifying this option reads a formula from standard input.``
 * ``--print-formula / -f -- Prints the formula that have been read.``
@@ -39,7 +45,7 @@
 * ``--print-ssf / -s -- Prints the SSF of the formula.``
 * ``--print-solution / -r -- Prints is the formula solvable (SAT) or not (UNSAT).``
   
-## Examples:
+## Examples
 
 * ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -fas`` -- ``Prints formula, AST and SSF``
 * ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -r`` ``-- Prints "SAT"``
