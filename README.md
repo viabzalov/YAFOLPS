@@ -27,7 +27,9 @@
   | <Quantifier> <Var> "(" <Formula> ")" 
 ```
 
-## Usage: stack build && stack exec -- YAFOLPS-exe <args>
+# Usage: 
+
+## ``stack build && stack exec -- YAFOLPS-exe <args>``
 
 ## Args:
 
