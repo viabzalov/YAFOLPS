@@ -204,10 +204,14 @@ convertToCNF = formula2CNF False .> simplify where
     _NF2_NF = simplify .> foldr (\x y -> concat $ (\z -> (: z) <$> x) <$> y) [[]] .> simplify
     simplify :: [[Liter]] -> [[Liter]]
     simplify [] = []
+    simplify ([] : xs) = [[]]
     simplify (x : xs) = let xs' = simplify xs in
-        case simplify' x [] of
-            [] -> xs'
-            x' -> x' : xs'
+        if xs' == [[]] then
+            [[]]
+        else
+            case simplify' x [] of
+                [] -> xs'
+                x' -> x' : xs'
     simplify' :: [Liter] -> [Liter] -> [Liter]
     simplify' [] ans = ans
     simplify' (x@(PS ps) : xs) ans =
