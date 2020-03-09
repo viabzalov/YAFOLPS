@@ -39,8 +39,8 @@
   
 ## Examples:
 
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example1 -fas`` -- ``Prints formula, AST and SSF``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example1 -r`` ``-- Prints "SAT"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example2 -r`` ``-- Prints "UNSAT"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example3 -r`` ``-- Prints "UNSAT"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example4 -r`` ``-- Prints "SAT"``
+* ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -fas`` -- ``Prints formula, AST and SSF``
+* ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -r`` ``-- Prints "SAT"``
+* ``stack build && stack exec -- YAFOLPS-exe --i test/example2.txt -r`` ``-- Prints "UNSAT"``
+* ``stack build && stack exec -- YAFOLPS-exe --i test/example3.txt -r`` ``-- Prints "UNSAT"``
+* ``stack build && stack exec -- YAFOLPS-exe --i test/example4.txt -r`` ``-- Prints "SAT"``
