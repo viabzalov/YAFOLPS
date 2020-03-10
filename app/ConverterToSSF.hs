@@ -6,12 +6,15 @@
 module ConverterToSSF where
 
 import           Ast
+import           Control.Monad
 import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.State.Lazy
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.State
 import           Data.List
 import           Ssf
 
 type Replacements = [(String, Term)]
+type VarReplacements = [(String, String)]
 type ForallVars = [String]
 
 (.>) :: (a -> b) -> (b -> c) -> a -> c
@@ -26,13 +29,13 @@ replace f x' (x : xs) =
         x : replace f x' xs
 
 renameBoundVariables :: Formula -> Formula
-renameBoundVariables = renamingInFormula .> flip evalState [] where
-    renamingInFormula :: Formula -> State Replacements Formula
+renameBoundVariables = renamingInFormula .> flip runReaderT [] .> flip evalState 1 where
+    renamingInFormula :: Formula -> ReaderT VarReplacements (State Int) Formula
     renamingInFormula formula = case formula of
         Top -> return Top
         Bottom -> return Bottom
         PredicateSymbol (Symbol name args) -> do
-            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            args' <- foldM (\args m_arg -> m_arg >>= (\arg -> return $ arg : args)) [] $ renamingInTerm <$> args
             return $ PredicateSymbol $ Symbol name args'
         Neg f -> do
             f' <- renamingInFormula f
@@ -50,42 +53,36 @@ renameBoundVariables = renamingInFormula .> flip evalState [] where
             f2' <- renamingInFormula f2
             return $ Impl f1' f2'
         Exist v f -> do
-            replacements <- get
-            case find (fst .> (== v)) replacements of
-                Nothing -> do
-                    let v' = "(" ++ v ++ ")"
-                    modify ((v, Variable v') :)
-                    f' <- renamingInFormula f
-                    return $ Exist v' f'
-                Just (_, Variable v') -> do
-                    let v'' = v' ++ "'"
-                    modify $ replace (fst .> (== v)) (v, Variable v'')
-                    f' <- renamingInFormula f
-                    return $ Exist v'' f'
-                Just (_, FunctionSymbol fs) -> error "Replacement on Function Symbol is not meant"
+            nextIndex <- lift $ get
+            let v' = v ++ "_" ++ show nextIndex
+            lift $ modify (+ 1)
+            replacements <- ask
+            f' <- case find (fst .> (== v)) replacements of
+                Nothing ->
+                    local ((v, v') :) $ renamingInFormula f
+                Just _ ->
+                    local (replace (fst .> (== v)) (v, v')) $ renamingInFormula f
+            return $ Exist v' f'
         Forall v f -> do
-            replacements <- get
-            case find (fst .> (== v)) replacements of
-                Nothing -> do
-                    let v' = "(" ++ v ++ ")"
-                    modify ((v, Variable v') :)
-                    f' <- renamingInFormula f
-                    return $ Forall v' f'
-                Just (_, Variable v') -> do
-                    let v'' = v' ++ "'"
-                    modify $ replace (fst .> (== v)) (v, Variable v'')
-                    f' <- renamingInFormula f
-                    return $ Forall v'' f'
-                Just (_, FunctionSymbol fs) -> error "Replacement on Function Symbol is not meant"
-    renamingInTerm :: Term -> State Replacements Term
+            nextIndex <- lift $ get
+            let v' = v ++ "_" ++ show nextIndex
+            lift $ modify (+ 1)
+            replacements <- ask
+            f' <- case find (fst .> (== v)) replacements of
+                Nothing ->
+                    local ((v, v') :) $ renamingInFormula f
+                Just _ ->
+                    local (replace (fst .> (== v)) (v, v')) $ renamingInFormula f
+            return $ Forall v' f'
+    renamingInTerm :: Term -> ReaderT VarReplacements (State Int) Term
     renamingInTerm = \case
         Variable v -> do
-            replacements <- get
+            replacements <- ask
             case find (fst .> (== v)) replacements of
-                Nothing     -> return $ Variable v
-                Just (_, t) -> return t
+                Nothing      -> return $ Variable v
+                Just (_, v') -> return $ Variable v'
         FunctionSymbol (Symbol name args) -> do
-            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            args' <- foldM (\args m_arg -> m_arg >>= (\arg -> return $ arg : args)) [] $ renamingInTerm <$> args
             return $ FunctionSymbol $ Symbol name args'
 
 takeOutQuants :: Formula -> Formula
@@ -158,7 +155,7 @@ deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState []
             return $ Impl f1' f2'
         Exist v f -> do
             forallVars <- lift $ get
-            let t = FunctionSymbol (Symbol ("Sko" ++ v) (Variable <$> forallVars))
+            let t = FunctionSymbol (Symbol ("Sko(" ++ v ++ ")") (Variable <$> forallVars))
             modify $ ((v, t) :)
             renamingInFormula f
         Forall v f -> do
@@ -185,8 +182,8 @@ convertToCNF = formula2CNF False .> simplify where
         PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
         Neg f -> formula2DNF (not isNeg) f
         Conj f1 f2 -> formula2CNF isNeg f1 ++ formula2CNF isNeg f2
-        Disj f1 f2 -> _NF2_NF $ formula2DNF isNeg f1 ++ formula2DNF isNeg f2
-        Impl f1 f2 -> _NF2_NF $ formula2CNF (not isNeg) f1 ++ formula2DNF isNeg f2
+        Disj f1 f2 -> revealDistributively [formula2CNF isNeg f1, formula2CNF isNeg f2]
+        Impl f1 f2 -> revealDistributively [formula2DNF (not isNeg) f1, formula2CNF isNeg f2]
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
     formula2DNF :: Bool -> Formula -> DNF
@@ -195,13 +192,13 @@ convertToCNF = formula2CNF False .> simplify where
         Bottom -> []
         PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
         Neg f -> formula2CNF (not isNeg) f
-        Conj f1 f2 -> _NF2_NF $ formula2CNF isNeg f1 ++ formula2CNF isNeg f2
+        Conj f1 f2 -> revealDistributively [formula2DNF isNeg f1, formula2DNF isNeg f2]
         Disj f1 f2 -> formula2DNF isNeg f1 ++ formula2DNF isNeg f2
         Impl f1 f2 -> formula2CNF (not isNeg) f1 ++ formula2DNF isNeg f2
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
-    _NF2_NF :: [[Liter]] -> [[Liter]]
-    _NF2_NF = simplify .> foldr (\x y -> concat $ (\z -> (: z) <$> x) <$> y) [[]] .> simplify
+    revealDistributively :: [[[Liter]]] -> [[Liter]]
+    revealDistributively = map simplify .> sequence .> map concat .> simplify
     simplify :: [[Liter]] -> [[Liter]]
     simplify [] = []
     simplify ([] : xs) = [[]]
