@@ -180,8 +180,8 @@ convertToCNF :: Formula -> CNF
 convertToCNF = formula2CNF False .> simplify where
     formula2CNF :: Bool -> Formula -> CNF
     formula2CNF isNeg = \case
-        Top -> if isNeg then [[]] else []
-        Bottom -> if isNeg then [] else [[]]
+        Top -> []
+        Bottom -> [[]]
         PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
         Neg f -> formula2DNF (not isNeg) f
         Conj f1 f2 -> formula2CNF isNeg f1 ++ formula2CNF isNeg f2
@@ -191,8 +191,8 @@ convertToCNF = formula2CNF False .> simplify where
         Forall v f -> error "Quantifier cannot be converted to CNF"
     formula2DNF :: Bool -> Formula -> DNF
     formula2DNF isNeg = \case
-        Top -> if isNeg then [] else [[]]
-        Bottom -> if isNeg then [[]] else []
+        Top -> [[]]
+        Bottom -> []
         PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
         Neg f -> formula2CNF (not isNeg) f
         Conj f1 f2 -> _NF2_NF $ formula2CNF isNeg f1 ++ formula2CNF isNeg f2
