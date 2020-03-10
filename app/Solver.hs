@@ -312,9 +312,9 @@ newCNF cnf ((disj1, disj2):prs) =
 -- | Remove all empty disjuncts
 normalizeCNF :: CNF -> CNF
 normalizeCNF [] = []
-normalizeCNF (disj:disjs) =
-    if disj == [] then cnf' else disj:cnf' where
-        cnf' = normalizeCNF disjs
+normalizeCNF (disjs) = case (find (== []) disjs) of
+    Just x    -> []
+    otherwise -> disjs
 
 -- | Solve CNF by resolution method
 solveCNF :: CNF -> Bool

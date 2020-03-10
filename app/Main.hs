@@ -4,6 +4,7 @@
 
 module Main where
 
+import           Ast
 import           ConverterToSSF
 import           Data.List
 import           Data.Maybe
@@ -53,7 +54,7 @@ main = do
         putStrLn ""
     else return ()
 
-    let result = if (solve ssf) == True then "SAT" else "UNSAT"
+    let result = if (solve $ convertToSSF $ Neg $ ast) == True then "UNSAT" else "SAT"
 
     if getIsPrintedResult args then do
         putStrLn "FOL Solver result:"
