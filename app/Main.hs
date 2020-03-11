@@ -54,7 +54,7 @@ main = do
         putStrLn ""
     else return ()
 
-    let result = if (solve $ convertToSSF $ Neg $ ast) == True then "UNSAT" else "SAT"
+    let result = if (solve $ convertToSSF $ Neg $ ast) == True then "NOT VALID" else "VALID"
 
     if getIsPrintedResult args then do
         putStrLn "FOL Solver result:"
