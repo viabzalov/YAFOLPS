@@ -130,13 +130,13 @@ takeOutQuants = \case
     Forall v f -> Forall v (takeOutQuants f)
 
 deleteExistQuants :: Formula -> Formula
-deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState [] where
-    renamingInFormula :: Formula -> StateT Replacements (State ForallVars) Formula
+deleteExistQuants = renamingInFormula .> flip runReaderT [] .> flip runReader [] where
+    renamingInFormula :: Formula -> ReaderT Replacements (Reader ForallVars) Formula
     renamingInFormula = \case
         Top -> return Top
         Bottom -> return Bottom
         PredicateSymbol (Symbol name args) -> do
-            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            args' <- foldM (\args m_arg -> m_arg >>= (\arg -> return $ arg : args)) [] $ renamingInTerm <$> args
             return $ PredicateSymbol (Symbol name args')
         Neg f -> do
             f' <- renamingInFormula f
@@ -154,47 +154,45 @@ deleteExistQuants = renamingInFormula .> flip evalStateT [] .> flip evalState []
             f2' <- renamingInFormula f2
             return $ Impl f1' f2'
         Exist v f -> do
-            forallVars <- lift $ get
+            forallVars <- lift $ ask
             let t = FunctionSymbol (Symbol ("Sko(" ++ v ++ ")") (Variable <$> forallVars))
-            modify $ ((v, t) :)
-            renamingInFormula f
+            local ((v, t) :) $ renamingInFormula f
         Forall v f -> do
-            lift $ modify $ (v :)
-            f' <- renamingInFormula f
+            f' <- mapReaderT (local (v :)) $ renamingInFormula f
             return $ Forall v f'
-    renamingInTerm :: Term -> StateT Replacements (State ForallVars) Term
+    renamingInTerm :: Term -> ReaderT Replacements (Reader ForallVars) Term
     renamingInTerm = \case
         Variable v -> do
-            replacements <- get
+            replacements <- ask
             case find (fst .> (== v)) replacements of
                 Nothing     -> return $ Variable v
                 Just (_, t) -> return t
         FunctionSymbol (Symbol name args) -> do
-            args' <- foldr (\arg args -> (:) <$> arg <*> args) (return []) $ renamingInTerm <$> args
+            args' <- foldM (\args m_arg -> m_arg >>= (\arg -> return $ arg : args)) [] $ renamingInTerm <$> args
             return $ FunctionSymbol (Symbol name args')
 
 convertToCNF :: Formula -> CNF
-convertToCNF = formula2CNF False .> simplify where
-    formula2CNF :: Bool -> Formula -> CNF
-    formula2CNF isNeg = \case
+convertToCNF = formula2CNF .> simplify where
+    formula2CNF :: Formula -> CNF
+    formula2CNF = \case
         Top -> []
         Bottom -> [[]]
-        PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
-        Neg f -> formula2DNF (not isNeg) f
-        Conj f1 f2 -> formula2CNF isNeg f1 ++ formula2CNF isNeg f2
-        Disj f1 f2 -> revealDistributively [formula2CNF isNeg f1, formula2CNF isNeg f2]
-        Impl f1 f2 -> revealDistributively [formula2DNF (not isNeg) f1, formula2CNF isNeg f2]
+        PredicateSymbol ps -> [[PS ps]]
+        Neg f -> formula2NegCNF f
+        Conj f1 f2 -> formula2CNF f1 ++ formula2CNF f2
+        Disj f1 f2 -> revealDistributively [formula2CNF f1, formula2CNF f2]
+        Impl f1 f2 -> revealDistributively [formula2NegCNF f1, formula2CNF f2]
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
-    formula2DNF :: Bool -> Formula -> DNF
-    formula2DNF isNeg = \case
+    formula2NegCNF :: Formula -> DNF
+    formula2NegCNF = \case
         Top -> [[]]
         Bottom -> []
-        PredicateSymbol ps -> [[if isNeg then NegPS ps else PS ps]]
-        Neg f -> formula2CNF (not isNeg) f
-        Conj f1 f2 -> revealDistributively [formula2DNF isNeg f1, formula2DNF isNeg f2]
-        Disj f1 f2 -> formula2DNF isNeg f1 ++ formula2DNF isNeg f2
-        Impl f1 f2 -> formula2CNF (not isNeg) f1 ++ formula2DNF isNeg f2
+        PredicateSymbol ps -> [[NegPS ps]]
+        Neg f -> formula2CNF f
+        Conj f1 f2 -> revealDistributively [formula2NegCNF f1, formula2NegCNF f2]
+        Disj f1 f2 -> formula2NegCNF f1 ++ formula2NegCNF f2
+        Impl f1 f2 -> formula2CNF f1 ++ formula2NegCNF f2
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
     revealDistributively :: [[[Liter]]] -> [[Liter]]
