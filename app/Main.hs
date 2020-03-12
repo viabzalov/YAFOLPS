@@ -46,7 +46,7 @@ main = do
         putStrLn ""
     else return ()
 
-    let ssf = convertToSSF ast
+    let ssf = convertToSSF (Neg ast)
 
     if getIsPrintedSSF args then do
         putStrLn "Converted SSF:"

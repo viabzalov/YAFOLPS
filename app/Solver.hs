@@ -13,7 +13,9 @@ import           Control.Monad
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
-import qualified Data.Tuple    as T
+import qualified Data.Tuple         as T
+
+import           Debug.Pretty.Simple
 
 type Substitution = [(Term, Term)]
 
@@ -33,27 +35,27 @@ unique s = [x | x@(fi, se) <- s, fi /= se]
 
 decompose :: Substitution -> Maybe Substitution
 decompose [] = Just $ []
-decompose (p:ps) = 
+decompose (p:ps) =
     case p of
         (f1@(FunctionSymbol s1), f2@(FunctionSymbol s2)) ->
-            if (equiv f1 f2) 
+            if (equiv f1 f2)
                 then (decompose $ (zip (args s1) (args s2)) ++ ps)
             else Nothing
-        otherwise -> 
+        otherwise ->
             case decompose ps of
                 Just ps' -> Just $ p:ps'
-                Nothing   -> Nothing
+                Nothing  -> Nothing
 
 swap :: Substitution -> Substitution
 swap [] = []
-swap (p:ps) = 
+swap (p:ps) =
     case p of
         (f@(FunctionSymbol s), v@(Variable name)) -> (v, f):(swap ps)
         otherwise                                 -> p:(swap ps)
 
 eliminate :: Substitution -> Substitution -> Substitution
 eliminate [] s = s
-eliminate (p:ps) s = 
+eliminate (p:ps) s =
     case p of
         (v@(Variable name), trm) ->
             if (occursCheck [p] /= Nothing) && (v `elem` vs)
@@ -69,21 +71,21 @@ eliminate (p:ps) s =
 
 occursCheck :: Substitution -> Maybe Substitution
 occursCheck s =
-    if and $ map check s 
-        then Just $ s 
+    if and $ map check s
+        then Just $ s
     else Nothing where
         check :: (Term, Term) -> Bool
         check (v, t) = not $ v `elem` (getVariables t)
 
 unify' :: Substitution -> Maybe Substitution
-unify' s = 
+unify' s =
     case decompose s of
         Nothing -> Nothing
-        Just s1 -> 
+        Just s1 ->
             case occursCheck (swap s1) of
                 Nothing -> Nothing
                 Just s2 ->
-                    if isSubstitution s3 
+                    if isSubstitution s3
                         then Just $ s3
                     else unify' s3 where
                         s3 = unique $ swap $ eliminate s2 s2
@@ -93,7 +95,7 @@ isSubstitution s = ans where
 
     isVariables :: [Term] -> Bool
     isVariables [] = True
-    isVariables (t:ts) = 
+    isVariables (t:ts) =
         case t of
             (Variable name) -> True && (isVariables ts)
             otherwise       -> False
@@ -114,20 +116,22 @@ instance Unifiable Term where
     getVariables (FunctionSymbol smbl) = nub $ concatMap getVariables (args smbl)
     getVariables vrb                   = [vrb]
 
-    apply sbstn vrb@(Variable name)  = 
+    apply sbstn vrb@(Variable name)  =
         case lookup vrb sbstn of
             Just trm  -> trm
             otherwise -> vrb
     apply sbstn (FunctionSymbol smbl) =
         FunctionSymbol $ Symbol (name smbl) (map (apply sbstn) (args smbl))
 
-    equiv (Variable name1) (Variable name2) = (name1 == name2)
+    equiv (Variable name1) (Variable name2) = True 
+    equiv v@(Variable name) f@(FunctionSymbol smbl) = not $ v `elem` (getVariables f)
+    equiv f@(FunctionSymbol smbl) v@(Variable name) = not $ v `elem` (getVariables f)
     equiv (FunctionSymbol smbl1) (FunctionSymbol smbl2) =
         (name smbl1) == (name smbl2) &&
-        (length (args smbl1)) == (length (args smbl2))
-    equiv _ _ = False
+        (length (args smbl1)) == (length (args smbl2)) &&
+        and (map (uncurry equiv) (zip (args smbl1) (args smbl2)))
 
-    unify trm1 trm2 = 
+    unify trm1 trm2 =
         case unify' [(trm1, trm2)] of
             Nothing    -> Nothing
             Just sbstn -> Just $ [sbstn]
@@ -171,44 +175,49 @@ instance Unifiable Disjunct where
         disj' = apply (zip vrbs vrbs') disj
 
 resolution :: Disjunct -> Disjunct -> [Disjunct]
-resolution disj1 disj2 = nub $ l1 ++ l2 where
-    l1 = nub $
-        [ nub$ delete x' $ delete y' (disj1' ++ disj2')
-          | x@(PS s1) <- disj1, 
-            y@(NegPS s2) <- disj2, 
-            s' <- fromMaybe [[]] (unify x y), 
-            let disj1' = apply s' disj1, 
-            let disj2' = apply s' disj2, 
-            let x' = apply s' x, 
+resolution disj1 disj2 = 
+    --pTrace ("RESOLUTION :\n" ++ (show disj1) ++ " # " ++ (show disj2) ++ " #$# " ++ (show $ nub $ l1 ++ l2)) $ 
+    nub $ l1 ++ l2 where
+    l1 =
+        [ delete x' $ delete y' $ nub (disj1' ++ disj2')
+          | x@(PS s1) <- disj1,
+            y@(NegPS s2) <- disj2,
+            s' <- fromMaybe [] (unify x y),
+            let disj1' = apply s' disj1,
+            let disj2' = apply s' disj2,
+            let x' = apply s' x,
             let y' = apply s' y
         ]
-    l2 = nub $
-        [ nub$ delete x' $ delete y' (disj1' ++ disj2')
-          | x@(NegPS s1) <- disj1, 
-            y@(PS s2) <- disj2, 
-            s' <- fromMaybe [([] :: Substitution)] (unify x y),
-            let disj1' = apply s' disj1, 
-            let disj2' = apply s' disj2, 
-            let x' = apply s' x, 
+    l2 =
+        [ delete x' $ delete y' $ nub (disj1' ++ disj2')
+          | x@(NegPS s1) <- disj1,
+            y@(PS s2) <- disj2,
+            (name s1) == (name s2),
+            s' <- fromMaybe [] (unify x y),
+            let disj1' = apply s' disj1,
+            let disj2' = apply s' disj2,
+            let x' = apply s' x,
             let y' = apply s' y
         ]
 
 gluing :: Disjunct -> [Disjunct]
 gluing disj = ans where
-    l = concat $ catMaybes [unify x y | x <- disj, y <- disj, x /= y]
+    l1 = concat $ catMaybes [unify x y | x@(PS s1) <- disj, y@(PS s2) <- disj, x /= y, (name s1) == (name s2)]
+    l2 = concat $ catMaybes [unify x y | x@(NegPS s1) <- disj, y@(NegPS s2) <- disj, x /= y, (name s1) == (name s2)]
+    l = l1 ++ l2
     ans = [nub $ apply x disj | x <- l]
 
 solveCNF :: CNF -> Bool
 solveCNF [] = True
-solveCNF cnf = 
-    if (find (== []) (cnf ++ res) /= Nothing) then False
+solveCNF cnf = -- pTrace ("SOLVECNF :\n" ++ show cnf) $
+    if (find (== []) res /= Nothing) then False
     else if cnf == res then True
     else solveCNF res where
         cnf1 = concat [resolution x y | x <- cnf, y <- cnf, x /= y]
         cnf2 = concat [resolution x' y | x <- cnf, y <- cnf, x /= y, x' <- gluing x]
         cnf3 = concat [resolution x y' | x <- cnf, y <- cnf, x /= y, y' <- gluing y]
         cnf4 = concat [resolution x' y' | x <- cnf, y <- cnf, x /= y, x' <- gluing x, y' <- gluing y]
-        res = cnf ++ cnf1 ++ cnf2 ++ cnf3 ++ cnf4
+        res = uniq' $nub $ cnf ++ cnf1 ++ cnf2 ++ cnf3 ++ cnf4
 
 uniq'' :: Int -> CNF -> CNF
 uniq'' n disjs =
