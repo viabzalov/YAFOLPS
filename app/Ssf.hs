@@ -9,7 +9,7 @@ import           Ast
 data Liter =
       PS {getPS :: Symbol}
     | NegPS {getPS :: Symbol}
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 type Disjunct = [Liter]
 
@@ -21,4 +21,4 @@ type CNF = [Disjunct]
 
 type UniversalQuant = String
 
-data SSF = SSF {quants :: [UniversalQuant], matrix :: CNF} deriving Show
+data SSF = SSF {quants :: [UniversalQuant], matrix :: CNF} deriving (Eq, Ord, Show)

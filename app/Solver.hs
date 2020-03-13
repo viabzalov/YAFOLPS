@@ -12,225 +12,258 @@ import           Ssf
 import           Control.Monad
 import           Data.Foldable
 import           Data.List
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
 import           Data.Maybe
-import qualified Data.Tuple         as T
+import           Data.Set            (Set)
+import qualified Data.Set            as Set
+import qualified Data.Tuple          as T
 
 import           Debug.Pretty.Simple
 
-type Substitution = [(Term, Term)]
+type Substitution = Map Term Term
 
-firstJust :: [Maybe a] -> Maybe a
-firstJust = join . find isJust
-
-composition :: Substitution -> Substitution -> Substitution
-composition s1 s2 = unique $ s1' ++ s2' where
-    (vs1, ts1) = unzip s1
-    (vs2, ts2) = unzip s2
-    tmp = zip vs1 ts2
-    s1' = zip vs1 (map (apply s2) ts1)
-    s2' = [x | x <- s2, not $ x `elem` tmp]
-
-unique :: Substitution -> Substitution
-unique s = [x | x@(fi, se) <- s, fi /= se]
-
-decompose :: Substitution -> Maybe Substitution
-decompose [] = Just $ []
-decompose (p:ps) =
-    case p of
-        (f1@(FunctionSymbol s1), f2@(FunctionSymbol s2)) ->
-            if (equiv f1 f2)
-                then (decompose $ (zip (args s1) (args s2)) ++ ps)
-            else Nothing
-        otherwise ->
-            case decompose ps of
-                Just ps' -> Just $ p:ps'
-                Nothing  -> Nothing
-
-swap :: Substitution -> Substitution
-swap [] = []
-swap (p:ps) =
-    case p of
-        (f@(FunctionSymbol s), v@(Variable name)) -> (v, f):(swap ps)
-        otherwise                                 -> p:(swap ps)
-
-eliminate :: Substitution -> Substitution -> Substitution
-eliminate [] s = s
-eliminate (p:ps) s =
-    case p of
-        (v@(Variable name), trm) ->
-            if (occursCheck [p] /= Nothing) && (v `elem` vs)
-                then eliminate s' s'
-            else eliminate ps s where
-                s'' = delete p s
-                (ls, rs) = unzip s''
-                vs = foldl (union) [] ((map getVariables ls) ++ (map getVariables rs))
-                replace' :: (Term, Term) -> (Term, Term) -> (Term, Term)
-                replace' p (fi, se) = ((apply [p] fi), (apply [p] se))
-                s' = p:(map (replace' p) s'')
-        otherwise -> eliminate ps s
-
-occursCheck :: Substitution -> Maybe Substitution
-occursCheck s =
-    if and $ map check s
-        then Just $ s
-    else Nothing where
-        check :: (Term, Term) -> Bool
-        check (v, t) = not $ v `elem` (getVariables t)
-
-unify' :: Substitution -> Maybe Substitution
-unify' s =
-    case decompose s of
-        Nothing -> Nothing
-        Just s1 ->
-            case occursCheck (swap s1) of
-                Nothing -> Nothing
-                Just s2 ->
-                    if isSubstitution s3
-                        then Just $ s3
-                    else unify' s3 where
-                        s3 = unique $ swap $ eliminate s2 s2
-
-isSubstitution :: Substitution -> Bool
-isSubstitution s = ans where
-
-    isVariables :: [Term] -> Bool
-    isVariables [] = True
-    isVariables (t:ts) =
-        case t of
-            (Variable name) -> True && (isVariables ts)
-            otherwise       -> False
-
-    (ls, rs) = unzip s
-    rVariables = foldl (union) [] (map getVariables rs)
-
-    ans = (isVariables ls) && (and $ [not (x `elem` rVariables) | x <- ls])
-
-class Unifiable a where
-    getVariables :: a -> [Term]
-    apply :: Substitution -> a -> a
-    equiv :: a -> a -> Bool
-    unify :: a -> a -> Maybe [Substitution]
-    uniq :: Int -> a -> a
-
-instance Unifiable Term where
-    getVariables (FunctionSymbol smbl) = nub $ concatMap getVariables (args smbl)
-    getVariables vrb                   = [vrb]
-
-    apply sbstn vrb@(Variable name)  =
-        case lookup vrb sbstn of
-            Just trm  -> trm
-            otherwise -> vrb
-    apply sbstn (FunctionSymbol smbl) =
-        FunctionSymbol $ Symbol (name smbl) (map (apply sbstn) (args smbl))
-
-    equiv (Variable name1) (Variable name2) = True 
-    equiv v@(Variable name) f@(FunctionSymbol smbl) = not $ v `elem` (getVariables f)
-    equiv f@(FunctionSymbol smbl) v@(Variable name) = not $ v `elem` (getVariables f)
-    equiv (FunctionSymbol smbl1) (FunctionSymbol smbl2) =
-        (name smbl1) == (name smbl2) &&
-        (length (args smbl1)) == (length (args smbl2)) &&
-        and (map (uncurry equiv) (zip (args smbl1) (args smbl2)))
-
-    unify trm1 trm2 =
-        case unify' [(trm1, trm2)] of
-            Nothing    -> Nothing
-            Just sbstn -> Just $ [sbstn]
-
-    uniq n trm = trm' where
-        vrbs = getVariables trm
-        vrbs' = map (Variable . show) [n..(n + length vrbs)]
-        trm' = apply (zip vrbs vrbs') trm
-
-instance Unifiable Liter where
-    getVariables ltr = getVariables $ FunctionSymbol $ getPS $ ltr
-
-    apply sbstn (PS smbl) = PS $ Symbol (name smbl) (map (apply sbstn) (args smbl))
-    apply sbstn (NegPS smbl) = NegPS $ Symbol (name smbl) (map (apply sbstn) (args smbl))
-
-    equiv ltr1 ltr2 = equiv (FunctionSymbol $ getPS $ ltr1) (FunctionSymbol $ getPS $ ltr2)
-
-    unify ltr1 ltr2 = unify (FunctionSymbol $ getPS $ ltr1) (FunctionSymbol $ getPS $ ltr2)
-
-    uniq n ltr = ltr' where
-        vrbs = getVariables ltr
-        vrbs' = map (Variable . show) [n..(n + length vrbs)]
-        ltr' = apply (zip vrbs vrbs') ltr
-
-instance Unifiable Disjunct where
-    getVariables disj = nub $ concatMap getVariables disj
-
-    apply sbstn disj = map (apply sbstn) disj
-
-    equiv disj1 disj2 = and $ map (uncurry equiv) (zip disj1 disj2)
-
-    unify disj1 disj2 =
-        if (l1 == []) && (l2 == []) then Nothing
-        else Just $ nub $ l1 ++ l2 where
-            l1 = concat $ catMaybes [unify x y | x@(PS s1) <- disj1, y@(NegPS s2) <- disj2]
-            l2 = concat $ catMaybes [unify x y | x@(NegPS s1) <- disj1, y@(PS s2) <- disj2]
-
-    uniq n disj = disj' where
-        vrbs = getVariables disj
-        vrbs' = map (Variable . show) [n..(n + length vrbs)]
-        disj' = apply (zip vrbs vrbs') disj
-
-resolution :: Disjunct -> Disjunct -> [Disjunct]
-resolution disj1 disj2 = 
-    --pTrace ("RESOLUTION :\n" ++ (show disj1) ++ " # " ++ (show disj2) ++ " #$# " ++ (show $ nub $ l1 ++ l2)) $ 
-    nub $ l1 ++ l2 where
-    l1 =
-        [ delete x' $ delete y' $ nub (disj1' ++ disj2')
-          | x@(PS s1) <- disj1,
-            y@(NegPS s2) <- disj2,
-            s' <- fromMaybe [] (unify x y),
-            let disj1' = apply s' disj1,
-            let disj2' = apply s' disj2,
-            let x' = apply s' x,
-            let y' = apply s' y
-        ]
-    l2 =
-        [ delete x' $ delete y' $ nub (disj1' ++ disj2')
-          | x@(NegPS s1) <- disj1,
-            y@(PS s2) <- disj2,
-            (name s1) == (name s2),
-            s' <- fromMaybe [] (unify x y),
-            let disj1' = apply s' disj1,
-            let disj2' = apply s' disj2,
-            let x' = apply s' x,
-            let y' = apply s' y
-        ]
-
-gluing :: Disjunct -> [Disjunct]
-gluing disj = ans where
-    l1 = concat $ catMaybes [unify x y | x@(PS s1) <- disj, y@(PS s2) <- disj, x /= y, (name s1) == (name s2)]
-    l2 = concat $ catMaybes [unify x y | x@(NegPS s1) <- disj, y@(NegPS s2) <- disj, x /= y, (name s1) == (name s2)]
-    l = l1 ++ l2
-    ans = [nub $ apply x disj | x <- l]
-
-solveCNF :: CNF -> Bool
-solveCNF [] = True
-solveCNF cnf = -- pTrace ("SOLVECNF :\n" ++ show cnf) $
-    if (find (== []) res /= Nothing) then False
-    else if cnf == res then True
-    else solveCNF res where
-        cnf1 = concat [resolution x y | x <- cnf, y <- cnf, x /= y]
-        cnf2 = concat [resolution x' y | x <- cnf, y <- cnf, x /= y, x' <- gluing x]
-        cnf3 = concat [resolution x y' | x <- cnf, y <- cnf, x /= y, y' <- gluing y]
-        cnf4 = concat [resolution x' y' | x <- cnf, y <- cnf, x /= y, x' <- gluing x, y' <- gluing y]
-        res = uniq' $nub $ cnf ++ cnf1 ++ cnf2 ++ cnf3 ++ cnf4
-
-uniq'' :: Int -> CNF -> CNF
-uniq'' n disjs =
-    if length disjs == 1 then [uniq n (head disjs)]
-    else [uniq n (head disjs)] ++ (uniq'' n' (tail disjs)) where
-        n' = n + (length $ getVariables $ head disjs)
-
-uniq' :: CNF -> CNF
-uniq' [] = []
-uniq' cnf =
-    if (find (== []) cnf /= Nothing) then [[]]
-    else uniq'' 1 cnf
+type MyDisjunct = Set Liter
+type MyCNF = Set MyDisjunct
 
 solve :: SSF -> Bool
-solve (SSF quants [])     = True
-solve (SSF quants matrix) = solveCNF $ uniq' matrix
+solve (SSF quants []) = True
+solve (SSF quants cnf) =
+    if find (== []) cnf /= Nothing
+        then False
+    else 
+        and $ solveCNF 1000 (uniqCNF 1 (Set.fromList $ map (Set.fromList) cnf))
+
+solveCNF :: Int -> MyCNF -> [Bool]
+solveCNF 0 _ = [True]
+solveCNF n cnf = do
+    i <- [0..(Set.size cnf - 1)]
+    j <- [(i + 1)..(Set.size cnf - 1)]
+    let d1 = Set.elemAt i cnf
+    let d2 = Set.elemAt j cnf
+    d1' <- gluing d1
+    d2' <- gluing d2
+    let r1 = Set.fromList $ resolution d1' d2'
+    let r2 = Set.fromList $ resolution d1' d2
+    let r3 = Set.fromList $ resolution d1 d2'
+    let r4 = Set.fromList $ resolution d1 d2
+    let r = uniqCNF 1 (Set.unions [cnf, r1, r2, r3, r4])
+    if Set.member Set.empty r
+        then [False]
+    else solveCNF (n - 1) (uniqCNF 1 r)
+
+
+class Logic a where
+    apply :: Substitution -> a -> a
+    equiv :: a -> a -> Bool
+    variables :: a -> Set Term
+    uniq' :: Int -> a -> a
+    uniq :: a -> a
+    unify :: a -> a -> [Substitution]
+
+instance Logic Substitution where
+
+    apply p s = Map.map (apply p) (Map.mapKeys (apply p) s)
+
+    equiv s1 s2 = s1 == s2
+
+    variables s = Set.union ks vs where
+        ks = Map.keysSet s
+        vs = Set.unions $ map variables (Map.elems s)
+
+    uniq' n s = apply p s where
+        ks = Set.toList $ variables s
+        vs = map (Variable . show) [n .. (n + length ks)]
+        p = Map.fromList $ zip ks vs
+
+    uniq s = uniq' 1 s
+
+    unify s1 s2 = unify' $ Map.union s1 s2 where
+
+        unify' :: Substitution -> [Substitution]
+        unify' s = do
+            s' <- maybeToList (unique =<< (eliminate 0) =<< occursCheck =<< swap =<< (decompose 0 s))
+            if isSubstitution s' 
+                then [s'] 
+            else unify' s'
+
+        unique :: Substitution -> Maybe Substitution
+        unique s = Just $ Map.filterWithKey (\k v -> k /= v) s
+
+        isSubstitution :: Substitution -> Bool
+        isSubstitution s = Set.disjoint ks vs where
+            ks = Map.keysSet s
+            vs = Set.unions $ map variables (Map.elems s)
+
+        decompose :: Int -> Substitution -> Maybe Substitution
+        decompose i s = do
+            let x = Map.elemAt i s
+            case x of
+                (f1@(FunctionSymbol s1), f2@(FunctionSymbol s2)) ->
+                    if equiv f1 f2
+                        then decompose 0 s'
+                    else Nothing where
+                        s1' = Map.fromList (zip (args s1) (args s2))
+                        s2' = Map.deleteAt i s
+                        s' = Map.union s1' s2'
+                otherwise ->
+                    if i + 1 == Map.size s
+                        then Just s
+                    else decompose (i + 1) s
+        
+        swap :: Substitution -> Maybe Substitution
+        swap s = Just s' where
+            (t, f) = Map.partitionWithKey swap' s
+            t' = Map.fromList $ map T.swap (Map.toList t)
+            s' = Map.union t' f
+
+        swap' :: Term -> Term -> Bool
+        swap' t1 t2 = 
+            case (t1, t2) of
+                (f@(FunctionSymbol s), v@(Variable name)) -> True
+                otherwise -> False
+        
+        eliminate :: Int -> Substitution -> Maybe Substitution
+        eliminate i s = do
+            let x = Map.elemAt i s
+            case x of 
+                (v@(Variable name), trm) ->
+                    if Set.member v vs
+                        then eliminate 0 ns
+                    else 
+                        if i + 1 == Map.size s
+                            then Just s
+                        else eliminate (i + 1) s where
+                            s' = Map.deleteAt i s
+                            vs = variables s'
+                            sng = (Map.singleton v trm)
+                            ns = Map.union sng (apply sng s')
+                otherwise -> 
+                    if i + 1 == Map.size s
+                        then Just s
+                    else eliminate (i + 1) s
+
+        occursCheck :: Substitution -> Maybe Substitution
+        occursCheck s = 
+            if and $ map (check s) [0..(Map.size s - 1)]
+                then Just s
+            else Nothing
+
+        check :: Substitution -> Int -> Bool
+        check s i = res where
+            (v, t) = Map.elemAt i s
+            res = not $ Set.member v (variables t)
+
+instance Logic Term where
+ 
+    apply p (FunctionSymbol s) = 
+        FunctionSymbol $ Symbol (name s) (map (apply p) (args s))
+    apply p v = Map.findWithDefault v v p
+
+    equiv v@(Variable n) f@(FunctionSymbol s) = 
+        not $ Set.member v (variables f)
+    equiv (FunctionSymbol s1) (FunctionSymbol s2) =
+        (name s1) == (name s2) &&
+        (length (args s1)) == (length (args s2)) &&
+        and (map (uncurry equiv) (zip (args s1) (args s2)))
+    equiv f@(FunctionSymbol s) v@(Variable n) = equiv v f
+    equiv _ _ = True
+
+    variables (FunctionSymbol s) = Set.unions $ map variables (args s)
+    variables v = Set.singleton v
+
+    uniq' n t = apply p t where
+        ks = Set.toList $ variables t
+        vs = map (Variable . show) [n..(n + length ks)]
+        p = Map.fromList $ zip ks vs
+
+    uniq t = uniq' 1 t
+
+    unify t1 t2 = unify (Map.fromList [(t1, t2)]) (Map.empty)
+
+instance Logic Liter where
+
+    apply p (PS s) = PS $ Symbol (name s) (map (apply p) (args s))
+    apply p (NegPS s) = NegPS $ Symbol (name s) (map (apply p) (args s))
+
+    equiv l1 l2 = equiv (FunctionSymbol $ getPS l1) (FunctionSymbol $ getPS l2)
+
+    variables l = variables (FunctionSymbol $ getPS l)
+
+    uniq' n l = apply p l where
+        ks = Set.toList $ variables l
+        vs = map (Variable . show) [n .. (n + length ks)]
+        p = Map.fromList $ zip ks vs
+
+    uniq l = uniq' 1 l
+
+    unify l1 l2 = 
+        unify (FunctionSymbol $ getPS l1) (FunctionSymbol $ getPS l2)
+
+instance Logic MyDisjunct where
+
+    apply p d = Set.map (apply p) d
+
+    equiv d1 d2 = 
+        and $ map (uncurry equiv) (zip (Set.toList d1) (Set.toList d2))
+
+    variables d =
+        Set.unions $ map variables (Set.toList d)
+
+    uniq' n d = apply p d where
+        ks = Set.toList $ variables d
+        vs = map (Variable . show) [n .. (n + length ks)]
+        p = Map.fromList $ zip ks vs
+
+    uniq d = uniq' 1 d
+
+    unify d1 d2 = do
+        i <- [0..(Set.size d1 - 1)]
+        j <- [0..(Set.size d2 - 1)]
+        let l1 = Set.elemAt i d1
+        let l2 = Set.elemAt j d2
+        if equiv' l1 l2 
+            then unify l1 l2
+        else [] where
+            equiv' :: Liter -> Liter -> Bool
+            equiv' (PS s1) (PS s2) = True
+            equiv' (NegPS s1) (NegPS s2) = True
+            equiv' _ _ = False
+
+resolution :: MyDisjunct -> MyDisjunct -> [MyDisjunct]
+resolution d1 d2 = do
+    i <- [0..(Set.size d1 - 1)]
+    j <- [0..(Set.size d2 - 1)]
+    let l1 = Set.elemAt i d1
+    let l2 = Set.elemAt j d2
+    p <- unify l1 l2
+    if (equiv' l1 l2) && 
+        (apply p (FunctionSymbol $ getPS l1)) == (apply p (FunctionSymbol $ getPS l2))
+        then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
+    else [] where
+        equiv' :: Liter -> Liter -> Bool
+        equiv' (NegPS s1) (PS s2) = True
+        equiv' (PS s1) (NegPS s2) = True
+        equiv' _ _ = False
+
+gluing :: MyDisjunct -> [MyDisjunct]
+gluing d = do
+    i <- [0..(Set.size d - 1)]
+    j <- [(i + 1)..(Set.size d - 1)]
+    let l1 = Set.elemAt i d
+    let l2 = Set.elemAt j d
+    p <- unify l1 l2
+    if (apply p l1) == (apply p l2) 
+        then [apply p (Set.deleteAt i (Set.deleteAt j d))]
+    else [] 
+
+uniqCNF :: Int -> MyCNF -> MyCNF
+uniqCNF n cnf = 
+    if Set.size cnf == 0 
+        then Set.empty
+    else
+        Set.union (uniqCNF (n + len) s1) (Set.singleton $ uniq' n s0) where
+            s0 = Set.elemAt 0 cnf
+            s1 =  Set.deleteAt 0 cnf
+            len = Set.size $ variables s0
+    
