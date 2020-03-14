@@ -42,15 +42,21 @@
 * ``--input-file filename / --i filename -- Reads a formula from a file. Without specifying this option reads a formula from standard input.``
 * ``--print-formula / -f -- Prints the formula that have been read.``
 * ``--print-ast / -a -- Prints the AST of the formula.``
-* ``--print-ssf / -s -- Prints the SSF of the formula.``
+* ``--print-ssf / -s -- Prints the SSF of the negated formula.``
 * ``--print-solution / -r -- Prints "VALID" if is the formula is a tautology, otherwise prints "NOT VALID".``
   
 ## Examples
 
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -fas`` -- ``Prints formula, AST and SSF``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example1.txt -r`` ``-- Prints "VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example2.txt -r`` ``-- Prints "NOT VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example3.txt -r`` ``-- Prints "NOT VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/example4.txt -r`` ``-- Prints "VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/exampleTop.txt -r`` ``-- Prints "VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i test/exampleBottom.txt -r`` ``-- Prints "VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/1.txt -fas`` -- ``Prints formula, AST and SSF``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/1.txt -r`` ``-- Prints "NOT VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/2.txt -r`` ``-- Prints "NOT VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/3.txt -r`` ``-- Prints "NOT VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/4.txt -r`` ``-- Prints "VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/Top.txt -r`` ``-- Prints "VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i example/Bottom.txt -r`` ``-- Prints "VALID"``
+
+## Tests
+
+* ``stack test`` -- ``Prints results on the Hilbert's axioms``
+
+![Test results](images/Test_results.png)

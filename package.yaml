@@ -43,10 +43,18 @@ executables:
 tests:
   YAFOLPS-test:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:         
+    - test
+    - app
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
     - YAFOLPS
+    - parsec
+    - pretty-simple
+    - transformers
+    - containers
+    - tasty
+    - tasty-hunit 

@@ -20,6 +20,7 @@ import qualified Data.Set            as Set
 import qualified Data.Tuple          as T
 
 import           Debug.Pretty.Simple
+import Debug.Trace
 
 type Substitution = Map Term Term
 
@@ -32,7 +33,7 @@ solve (SSF quants cnf) =
     if find (== []) cnf /= Nothing
         then False
     else 
-        and $ solveCNF 1000 (uniqCNF 1 (Set.fromList $ map (Set.fromList) cnf))
+        and $ solveCNF 100 (uniqCNF 1 (Set.fromList $ map (Set.fromList) cnf))
 
 solveCNF :: Int -> MyCNF -> [Bool]
 solveCNF 0 _ = [True]
@@ -41,8 +42,10 @@ solveCNF n cnf = do
     j <- [(i + 1)..(Set.size cnf - 1)]
     let d1 = Set.elemAt i cnf
     let d2 = Set.elemAt j cnf
-    d1' <- gluing d1
-    d2' <- gluing d2
+    let g1 = gluing d1
+    let g2 = gluing d2
+    d1' <- if g1 == [] then [Set.empty] else g1
+    d2' <- if g2 == [] then [Set.empty] else g2
     let r1 = Set.fromList $ resolution d1' d2'
     let r2 = Set.fromList $ resolution d1' d2
     let r3 = Set.fromList $ resolution d1 d2'
@@ -82,7 +85,7 @@ instance Logic Substitution where
 
         unify' :: Substitution -> [Substitution]
         unify' s = do
-            s' <- maybeToList (unique =<< (eliminate 0) =<< occursCheck =<< swap =<< (decompose 0 s))
+            s' <- maybeToList (unique =<< (eliminate' 0) =<< occursCheck =<< swap =<< (decompose' 0 s))
             if isSubstitution s' 
                 then [s'] 
             else unify' s'
@@ -101,15 +104,21 @@ instance Logic Substitution where
             case x of
                 (f1@(FunctionSymbol s1), f2@(FunctionSymbol s2)) ->
                     if equiv f1 f2
-                        then decompose 0 s'
+                        then decompose' 0 s'
                     else Nothing where
                         s1' = Map.fromList (zip (args s1) (args s2))
                         s2' = Map.deleteAt i s
                         s' = Map.union s1' s2'
                 otherwise ->
-                    if i + 1 == Map.size s
+                    if i + 1 >= Map.size s
                         then Just s
-                    else decompose (i + 1) s
+                    else decompose' (i + 1) s
+        
+        decompose' :: Int -> Substitution -> Maybe Substitution
+        decompose' i s =
+            if (Map.size s == 0) || (i >= Map.size s)
+                then Nothing
+            else decompose i s
         
         swap :: Substitution -> Maybe Substitution
         swap s = Just s' where
@@ -129,19 +138,25 @@ instance Logic Substitution where
             case x of 
                 (v@(Variable name), trm) ->
                     if Set.member v vs
-                        then eliminate 0 ns
+                        then eliminate' 0 ns
                     else 
-                        if i + 1 == Map.size s
+                        if i + 1 >= Map.size s
                             then Just s
-                        else eliminate (i + 1) s where
+                        else eliminate' (i + 1) s where
                             s' = Map.deleteAt i s
                             vs = variables s'
                             sng = (Map.singleton v trm)
                             ns = Map.union sng (apply sng s')
                 otherwise -> 
-                    if i + 1 == Map.size s
+                    if i + 1 >= Map.size s
                         then Just s
-                    else eliminate (i + 1) s
+                    else eliminate' (i + 1) s
+
+        eliminate' :: Int -> Substitution -> Maybe Substitution
+        eliminate' i s = 
+            if (Map.size s == 0) || (i >= Map.size s)
+                then Nothing
+            else eliminate i s
 
         occursCheck :: Substitution -> Maybe Substitution
         occursCheck s = 
@@ -179,7 +194,11 @@ instance Logic Term where
 
     uniq t = uniq' 1 t
 
-    unify t1 t2 = unify (Map.fromList [(t1, t2)]) (Map.empty)
+    unify t1 t2 = 
+        if t1 == t2
+            then [Map.empty]
+        else 
+            unify (Map.fromList [(t1, t2)]) (Map.empty)
 
 instance Logic Liter where
 
@@ -198,7 +217,10 @@ instance Logic Liter where
     uniq l = uniq' 1 l
 
     unify l1 l2 = 
-        unify (FunctionSymbol $ getPS l1) (FunctionSymbol $ getPS l2)
+        if getPS l1 == getPS l2 
+            then [Map.empty]
+        else 
+            unify (FunctionSymbol $ getPS l1) (FunctionSymbol $ getPS l2)
 
 instance Logic MyDisjunct where
 
@@ -237,8 +259,7 @@ resolution d1 d2 = do
     let l1 = Set.elemAt i d1
     let l2 = Set.elemAt j d2
     p <- unify l1 l2
-    if (equiv' l1 l2) && 
-        (apply p (FunctionSymbol $ getPS l1)) == (apply p (FunctionSymbol $ getPS l2))
+    if (equiv' l1 l2)
         then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
     else [] where
         equiv' :: Liter -> Liter -> Bool
@@ -253,9 +274,13 @@ gluing d = do
     let l1 = Set.elemAt i d
     let l2 = Set.elemAt j d
     p <- unify l1 l2
-    if (apply p l1) == (apply p l2) 
-        then [apply p (Set.deleteAt i (Set.deleteAt j d))]
-    else [] 
+    if equiv' l1 l2 
+        then [apply p (Set.deleteAt i d)]
+    else [] where
+        equiv' :: Liter -> Liter -> Bool
+        equiv' (PS s1) (PS s2) = True
+        equiv' (NegPS s1) (NegPS s2) = True
+        equiv' _ _ = False
 
 uniqCNF :: Int -> MyCNF -> MyCNF
 uniqCNF n cnf = 
