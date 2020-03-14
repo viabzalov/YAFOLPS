@@ -53,7 +53,7 @@
 * ``stack build && stack exec -- YAFOLPS-exe --i examples/3.txt -r`` ``-- Prints "NOT VALID"``
 * ``stack build && stack exec -- YAFOLPS-exe --i examples/4.txt -r`` ``-- Prints "VALID"``
 * ``stack build && stack exec -- YAFOLPS-exe --i examples/Top.txt -r`` ``-- Prints "VALID"``
-* ``stack build && stack exec -- YAFOLPS-exe --i example/Bottom.txt -r`` ``-- Prints "VALID"``
+* ``stack build && stack exec -- YAFOLPS-exe --i examples/Bottom.txt -r`` ``-- Prints "VALID"``
 
 ## Tests
 
