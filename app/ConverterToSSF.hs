@@ -195,9 +195,9 @@ convertToCNF = formula2CNF .> simplify where
         Impl f1 f2 -> formula2CNF f1 ++ formula2NegCNF f2
         Exist v f -> error "Quantifier cannot be converted to CNF"
         Forall v f -> error "Quantifier cannot be converted to CNF"
-    revealDistributively :: [[[Liter]]] -> [[Liter]]
+    revealDistributively :: [[[Literal]]] -> [[Literal]]
     revealDistributively = map simplify .> sequence .> map concat .> simplify
-    simplify :: [[Liter]] -> [[Liter]]
+    simplify :: [[Literal]] -> [[Literal]]
     simplify [] = []
     simplify ([] : xs) = [[]]
     simplify (x : xs) = let xs' = simplify xs in
@@ -207,7 +207,7 @@ convertToCNF = formula2CNF .> simplify where
             case simplify' x [] of
                 [] -> xs'
                 x' -> x' : xs'
-    simplify' :: [Liter] -> [Liter] -> [Liter]
+    simplify' :: [Literal] -> [Literal] -> [Literal]
     simplify' [] ans = ans
     simplify' (x@(PS ps) : xs) ans =
         case find (getPS .> (== ps)) xs of

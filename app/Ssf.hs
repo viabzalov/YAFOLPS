@@ -6,14 +6,14 @@ module Ssf where
 
 import           Ast
 
-data Liter =
+data Literal =
       PS {getPS :: Symbol}
     | NegPS {getPS :: Symbol}
     deriving (Eq, Ord, Show)
 
-type Disjunct = [Liter]
+type Disjunct = [Literal]
 
-type Conjunct = [Liter]
+type Conjunct = [Literal]
 
 type DNF = [Conjunct]
 
