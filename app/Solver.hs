@@ -55,11 +55,16 @@ solveCNF h (n, cnf) = do
 
 resolution :: MyDisjunct -> MyDisjunct -> [MyDisjunct]
 resolution d1 d2 = do
+    pTrace ("D1:\n" ++ show d1) [True]
+    pTrace ("D2:\n" ++ show d2) [True]
     i <- [0..(Set.size d1 - 1)]
     j <- [0..(Set.size d2 - 1)]
     let l1 = Set.elemAt i d1
     let l2 = Set.elemAt j d2
+    pTrace ("ResL1:\n" ++ show l1) [True]
+    pTrace ("ResL2:\n" ++ show l2) [True]
     let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
+    pTrace ("ResP:\n" ++ show p) [True]
     if equiv' p l1 l2
         then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
     else [] where
@@ -72,16 +77,20 @@ gluing :: MyDisjunct -> [MyDisjunct]
 gluing d = do
     i <- [0..(Set.size d - 1)]
     j <- [(i + 1)..(Set.size d - 1)]
+    pTrace ("GluD:\n" ++ show d) [True]
     let l1 = Set.elemAt i d
     let l2 = Set.elemAt j d
+    pTrace ("GluL1:\n" ++ show l1) [True]
+    pTrace ("GluL2:\n" ++ show l2) [True]
     let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
+    pTrace ("GluP:\n" ++ show p) [True]
     if equiv' p l1 l2
         then [apply p (Set.deleteAt i d)]
     else [] where
         equiv' :: Substitution -> Literal -> Literal -> Bool
         equiv' p l1@(PS s1) l2@(PS s2)       = (apply p l1) == (apply p l2)
         equiv' p l1@(NegPS s1) l2@(NegPS s2) = (apply p l1) == (apply p l2)
-        equiv' _ _ _                   = False
+        equiv' _ _ _                         = False
 
 class Apply a where
     apply :: Substitution -> a -> a
@@ -95,16 +104,7 @@ instance Apply Literal where
     apply p (NegPS l) = NegPS $ Symbol (name l) (map (apply p) (args l))
 
 instance Apply MyDisjunct where
-    apply p d = Set.map (applyToLiteral p) d where
-
-applyToLiteral :: Substitution -> Literal -> Literal
-applyToLiteral p (PS l) = PS $ Symbol (name l) (map (applyToTerm p) (args l))
-applyToLiteral p (NegPS l) = NegPS $ Symbol (name l) (map (applyToTerm p) (args l))
-
-applyToTerm :: Substitution -> Term -> Term
-applyToTerm p (FunctionSymbol s) =
-    FunctionSymbol $ Symbol (name s) (map (applyToTerm p) (args s))
-applyToTerm p v@(Variable name) = Map.findWithDefault v name p
+    apply p d = Set.map (apply p) d 
 
 variables :: MyDisjunct -> Set String
 variables d = Set.unions $ Set.map (Set.unions . (map variablesOfTerm) . args . getPS) d where
