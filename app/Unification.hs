@@ -15,21 +15,24 @@ import qualified Data.Set   as Set
 import           Ssf
 
 type Substitution = Map String Term
-type Equations = Map Term Term
 
-unify :: Equations -> [Substitution]
-unify e = do
-    e' <- maybeToList (delete =<< (eliminate' 0) =<< check =<< swap =<< decompose e)
-    if isSubstitution e'
-        then [Map.mapKeys (\(Variable name) -> name) e']
-    else unify e'
+type Equations = Set (Term, Term)
+
+unify :: Equations -> Substitution
+unify e = 
+    case delete =<< (eliminate' 0) =<< check =<< swap =<< decompose e of
+        Nothing -> Map.empty
+        Just e' ->
+            if isSubstitution e'
+                then Map.fromList $ map (\(Variable name, t) -> (name, t)) $ Set.toList e'
+            else unify e'
 
 decompose :: Equations -> Maybe Equations
 decompose e =
     if not $ Nothing `elem` e'
-        then Just $ Map.fromList $ catMaybes e'
+        then Just $ Set.fromList $ catMaybes e'
     else Nothing where
-        e' = concat $ map decompose' $ Map.toList e
+        e' = concat $ map decompose' $ Set.toList e
 
         decompose' :: (Term, Term) -> [Maybe (Term, Term)]
         decompose' (f1@(FunctionSymbol s1), f2@(FunctionSymbol s2)) =
@@ -39,70 +42,60 @@ decompose e =
         decompose' x = [Just x]
 
 swap :: Equations -> Maybe Equations
-swap e = Just $ Map.fromList $ map swap' (Map.toList e) where
+swap e = Just $ Set.map swap' e where
 
     swap' :: (Term, Term) -> (Term, Term)
     swap' (f@(FunctionSymbol s), v@(Variable name)) = (v, f)
     swap' p                                         = p
 
 check :: Equations -> Maybe Equations
-check s =
-    if False `elem` (Map.elems $ Map.mapWithKey check' s)
+check e =
+    if Set.member False (Set.map (\(v, t) -> not $ Set.member v (variables t)) e)
         then Nothing
-    else Just s where
-
-        check' :: Term -> Term -> Bool
-        check' v t = not $ Set.member v (variables t)
+    else Just e 
 
 eliminate :: Int -> Equations -> Maybe Equations
-eliminate i s = do
-    let x = Map.elemAt i s
+eliminate i e = do
+    let x = Set.elemAt i e
     case x of
-        (v@(Variable name), trm) ->
+        p@(v@(Variable name), t) ->
             if Set.member v vs
-                then eliminate' 0 ns
+                then eliminate' 0 ne
             else
-                if i + 1 >= Map.size s
-                    then Just s
-                else eliminate' (i + 1) s where
-                    s' = Map.deleteAt i s
-                    vs = variables s'
-                    sng = (Map.singleton v trm)
-                    ns = Map.insert v trm (apply sng s')
+                if i + 1 >= Set.size e
+                    then Just e
+                else eliminate' (i + 1) e where
+                    e' = Set.deleteAt i e
+                    vs = variables e'
+                    ne = Set.insert p (Set.map (\(k, v) -> (apply p k, apply p v)) e')
         otherwise ->
-            if i + 1 >= Map.size s
-                then Just s
-            else eliminate' (i + 1) s
+            if i + 1 >= Set.size e
+                then Just e
+            else eliminate' (i + 1) e
 
 eliminate' :: Int -> Equations -> Maybe Equations
-eliminate' i s =
-    if (Map.size s == 0) || (i >= Map.size s)
+eliminate' i e =
+    if (Set.size e == 0) || (i >= Set.size e)
         then Nothing
-    else eliminate i s
+    else eliminate i e
 
 delete :: Equations -> Maybe Equations
-delete s = Just $ Map.filterWithKey (\k v -> k /= v) s
+delete e = Just $ Set.filter (\(k, v) -> k /= v) e
 
 isSubstitution :: Equations -> Bool
-isSubstitution s = Set.disjoint ks vs where
-    ks = Map.keysSet s
-    vs = Set.unions $ map variables (Map.elems s)
+isSubstitution e = uncurry Set.disjoint $ (\(a, b) -> (Set.fromList a, Set.fromList b)) $ unzip $ Set.toList e
 
 class Variables a where
     variables :: a -> Set Term
-    apply :: Equations -> a -> a
 
 instance Variables Term where
     variables (FunctionSymbol s) = Set.unions $ map variables (args s)
     variables v                  = Set.singleton v
 
-    apply p (FunctionSymbol s) =
-        FunctionSymbol $ Symbol (name s) (map (apply p) (args s))
-    apply p v = Map.findWithDefault v v p
-
 instance Variables Equations where
-    variables e = Set.union ks vs where
-        ks = Map.keysSet e
-        vs = Set.unions $ map variables (Map.elems e)
+    variables e = uncurry Set.union $ (\(a, b) -> (Set.fromList a, Set.fromList b)) $ unzip $ Set.toList e
 
-    apply p s = Map.map (apply p) (Map.mapKeys (apply p) s)
+apply :: (Term, Term) -> Term -> Term
+apply p (FunctionSymbol s) =
+    FunctionSymbol $ Symbol (name s) (map (apply p) (args s))
+apply p v = if v == fst p then snd p else v

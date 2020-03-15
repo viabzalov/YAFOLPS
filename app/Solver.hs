@@ -59,16 +59,14 @@ resolution d1 d2 = do
     j <- [0..(Set.size d2 - 1)]
     let l1 = Set.elemAt i d1
     let l2 = Set.elemAt j d2
-    let e = zip ((args . getPS) l1) ((args . getPS) l2)
-    let u = if getPS l1 == getPS l2 then [Map.empty] else unify $ Map.fromList e
-    p <- u
+    let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
     if equiv' p l1 l2
         then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
     else [] where
         equiv' :: Substitution -> Literal -> Literal -> Bool
-        equiv' p (NegPS s1) (PS s2) = (apply p (Set.singleton $ PS s1)) == (apply p (Set.singleton $ PS s2))
-        equiv' p (PS s1) (NegPS s2) = (apply p (Set.singleton $ PS s1)) == (apply p (Set.singleton $ PS s2))
-        equiv' _ _ _                = False
+        equiv' p (NegPS s1) (PS s2) = (apply p $ FunctionSymbol s1) == (apply p $ FunctionSymbol s2)
+        equiv' p (PS s1) (NegPS s2) = (apply p $ FunctionSymbol s1) == (apply p $ FunctionSymbol s2)
+        equiv' _ _ _                      = False
 
 gluing :: MyDisjunct -> [MyDisjunct]
 gluing d = do
@@ -76,28 +74,37 @@ gluing d = do
     j <- [(i + 1)..(Set.size d - 1)]
     let l1 = Set.elemAt i d
     let l2 = Set.elemAt j d
-    let e = zip ((args . getPS) l1) ((args . getPS) l2)
-    let u = if getPS l1 == getPS l2 then [Map.empty] else unify $ Map.fromList e
-    p <- u
+    let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
     if equiv' p l1 l2
         then [apply p (Set.deleteAt i d)]
     else [] where
         equiv' :: Substitution -> Literal -> Literal -> Bool
-        equiv' p (PS s1) (PS s2) = (apply p (Set.singleton $ PS s1)) == (apply p (Set.singleton $ PS s2))
-        equiv' p (NegPS s1) (NegPS s2) = (apply p (Set.singleton $ PS s1)) == (apply p (Set.singleton $ PS s2))
-        equiv' _ _ _                = False
+        equiv' p l1@(PS s1) l2@(PS s2)       = (apply p l1) == (apply p l2)
+        equiv' p l1@(NegPS s1) l2@(NegPS s2) = (apply p l1) == (apply p l2)
+        equiv' _ _ _                   = False
 
-apply :: Substitution -> MyDisjunct -> MyDisjunct
-apply p d = Set.map (applyToLiteral p) d where
+class Apply a where
+    apply :: Substitution -> a -> a
 
-    applyToLiteral :: Substitution -> Literal -> Literal
-    applyToLiteral p (PS l) = PS $ Symbol (name l) (map (applyToTerm p) (args l))
-    applyToLiteral p (NegPS l) = NegPS $ Symbol (name l) (map (applyToTerm p) (args l))
+instance Apply Term where
+    apply p (FunctionSymbol s) = FunctionSymbol $ Symbol (name s) (map (apply p) (args s))
+    apply p v@(Variable name) = Map.findWithDefault v name p
 
-    applyToTerm :: Substitution -> Term -> Term
-    applyToTerm p (FunctionSymbol s) =
-        FunctionSymbol $ Symbol (name s) (map (applyToTerm p) (args s))
-    applyToTerm p v@(Variable name) = Map.findWithDefault v name p
+instance Apply Literal where
+    apply p (PS l)    = PS $ Symbol (name l) (map (apply p) (args l))
+    apply p (NegPS l) = NegPS $ Symbol (name l) (map (apply p) (args l))
+
+instance Apply MyDisjunct where
+    apply p d = Set.map (applyToLiteral p) d where
+
+applyToLiteral :: Substitution -> Literal -> Literal
+applyToLiteral p (PS l) = PS $ Symbol (name l) (map (applyToTerm p) (args l))
+applyToLiteral p (NegPS l) = NegPS $ Symbol (name l) (map (applyToTerm p) (args l))
+
+applyToTerm :: Substitution -> Term -> Term
+applyToTerm p (FunctionSymbol s) =
+    FunctionSymbol $ Symbol (name s) (map (applyToTerm p) (args s))
+applyToTerm p v@(Variable name) = Map.findWithDefault v name p
 
 variables :: MyDisjunct -> Set String
 variables d = Set.unions $ Set.map (Set.unions . (map variablesOfTerm) . args . getPS) d where
