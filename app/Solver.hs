@@ -55,16 +55,11 @@ solveCNF h (n, cnf) = do
 
 resolution :: MyDisjunct -> MyDisjunct -> [MyDisjunct]
 resolution d1 d2 = do
-    pTrace ("D1:\n" ++ show d1) [True]
-    pTrace ("D2:\n" ++ show d2) [True]
     i <- [0..(Set.size d1 - 1)]
     j <- [0..(Set.size d2 - 1)]
     let l1 = Set.elemAt i d1
     let l2 = Set.elemAt j d2
-    pTrace ("ResL1:\n" ++ show l1) [True]
-    pTrace ("ResL2:\n" ++ show l2) [True]
     let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
-    pTrace ("ResP:\n" ++ show p) [True]
     if equiv' p l1 l2
         then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
     else [] where
@@ -77,13 +72,9 @@ gluing :: MyDisjunct -> [MyDisjunct]
 gluing d = do
     i <- [0..(Set.size d - 1)]
     j <- [(i + 1)..(Set.size d - 1)]
-    pTrace ("GluD:\n" ++ show d) [True]
     let l1 = Set.elemAt i d
     let l2 = Set.elemAt j d
-    pTrace ("GluL1:\n" ++ show l1) [True]
-    pTrace ("GluL2:\n" ++ show l2) [True]
     let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
-    pTrace ("GluP:\n" ++ show p) [True]
     if equiv' p l1 l2
         then [apply p (Set.deleteAt i d)]
     else [] where
