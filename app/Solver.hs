@@ -29,7 +29,7 @@ solve (SSF quants cnf) =
     if [] `elem` cnf
         then False
     else
-        and $ solveCNF 3 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
+        and $ solveCNF 10 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
 
 solveCNF :: Int -> (Int, MyCNF) -> [Bool]
 solveCNF 0 _ = [True]
