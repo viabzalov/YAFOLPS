@@ -18,13 +18,13 @@ type Substitution = Map String Term
 
 type Equations = Set (Term, Term)
 
-unify :: Equations -> Substitution
+unify :: Equations -> Maybe Substitution
 unify e = 
     case delete =<< (eliminate' 0) =<< check =<< swap =<< decompose e of
-        Nothing -> Map.empty
+        Nothing -> Nothing
         Just e' ->
             if isSubstitution e'
-                then Map.fromList $ map (\(Variable name, t) -> (name, t)) $ Set.toList e'
+                then Just $ Map.fromList $ map (\(Variable name, t) -> (name, t)) $ Set.toList e'
             else unify e'
 
 decompose :: Equations -> Maybe Equations

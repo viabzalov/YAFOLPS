@@ -12,6 +12,7 @@ import           Unification
 
 import           Data.Map            (Map)
 import qualified Data.Map            as Map
+import           Data.Maybe
 import           Data.Set            (Set)
 import qualified Data.Set            as Set
 
@@ -59,7 +60,7 @@ resolution d1 d2 = do
     j <- [0..(Set.size d2 - 1)]
     let l1 = Set.elemAt i d1
     let l2 = Set.elemAt j d2
-    let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
+    let p = fromMaybe Map.empty $ unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
     if equiv' p l1 l2
         then [apply p (Set.union (Set.deleteAt i d1) (Set.deleteAt j d2))]
     else [] where
@@ -74,7 +75,7 @@ gluing d = do
     j <- [(i + 1)..(Set.size d - 1)]
     let l1 = Set.elemAt i d
     let l2 = Set.elemAt j d
-    let p = unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
+    let p = fromMaybe Map.empty $ unify $ Set.fromList $ zip ((args . getPS) l1) ((args . getPS) l2)
     if equiv' p l1 l2
         then [apply p (Set.deleteAt i d)]
     else [] where
@@ -95,7 +96,7 @@ instance Apply Literal where
     apply p (NegPS l) = NegPS $ Symbol (name l) (map (apply p) (args l))
 
 instance Apply MyDisjunct where
-    apply p d = Set.map (apply p) d 
+    apply p d = Set.map (apply p) d
 
 variables :: MyDisjunct -> Set String
 variables d = Set.unions $ Set.map (Set.unions . (map variablesOfTerm) . args . getPS) d where
