@@ -201,13 +201,13 @@ convertToCNF = formula2CNF .> simplify where
     simplify :: [[Literal]] -> [[Literal]]
     simplify [] = []
     simplify ([] : xs) = [[]]
-    simplify (x : xs) = let xs' = simplify xs in
-        if xs' == [[]] then
-            [[]]
-        else
-            case simplify' x [] of
-                [] -> xs'
-                x' -> x' : xs'
+    simplify (x : xs) =
+        case simplify xs of
+            [[]] -> [[]]
+            xs'  -> 
+                case simplify' x [] of
+                    [] -> xs'
+                    x' -> x' : xs'
     simplify' :: [Literal] -> [Literal] -> [Literal]
     simplify' [] ans = ans
     simplify' (lit : lits) ans =
