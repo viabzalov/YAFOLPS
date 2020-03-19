@@ -16,9 +16,6 @@ import           Data.Maybe
 import           Data.Set            (Set)
 import qualified Data.Set            as Set
 
-import           Debug.Pretty.Simple
-import           Debug.Trace
-
 type Substitution = Map String Term
 
 type MyDisjunct = Set Literal
@@ -30,12 +27,11 @@ solve (SSF quants cnf) =
     if [] `elem` cnf
         then False
     else
-        and $ solveCNF 3 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
+        and $ solveCNF 4 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
 
 solveCNF :: Int -> (Int, MyCNF) -> [Bool]
 solveCNF 0 _ = [True]
 solveCNF h (n, cnf) = do
-    pTrace ("CNF: " ++ show cnf) [True]
     i <- [0..(Set.size cnf - 1)]
     j <- [(i + 1)..(Set.size cnf - 1)]
     let d1 = Set.elemAt i cnf
