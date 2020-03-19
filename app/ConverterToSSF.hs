@@ -17,6 +17,11 @@ type Replacements = [(String, Term)]
 type VarReplacements = [(String, String)]
 type ForallVars = [String]
 
+data FindLiterStatus =
+      NotFound
+    | Counter
+    | Identic
+
 (.>) :: (a -> b) -> (b -> c) -> a -> c
 f .> g = g . f
 
@@ -211,19 +216,23 @@ convertToCNF = formula2CNF .> simplify where
     simplify' [] ans = ans
     simplify' (x : xs) ans =
         case findLiter x xs of
-            Nothing    -> simplify' xs (x : ans)
-            Just True  -> simplify' xs ans
-            Just False -> []
-    isPositive :: Liter -> Bool
+            NotFound -> simplify' xs (x : ans)
+            Identic  -> simplify' xs ans
+            Counter  -> []
+    isPositive :: Literal -> Bool
     isPositive (PS _) = True
     isPositive (NegPS _) = False
     xor :: Bool -> Bool -> Bool
     x `xor` y = (x && y) || (not x && not y)
-    findLiter :: Liter -> [Liter] -> Maybe Bool
+    findLiter :: Literal -> [Literal] -> FindLiterStatus
     findLiter liter liters = let ps = getPS liter in
         case find (getPS .> (== ps)) liters of
-            Nothing  -> Nothing
-            Just ps' -> isPositive ps `xor` isPositive ps'
+            Nothing  -> NotFound
+            Just liter' ->
+                if isPositive liter `xor` isPositive liter' then
+                    Identic
+                else
+                    Counter
 
 convertToSSF :: Formula -> SSF
 convertToSSF = renameBoundVariables .> takeOutQuants .> deleteExistQuants .> constructSSF where
