@@ -209,16 +209,21 @@ convertToCNF = formula2CNF .> simplify where
                 x' -> x' : xs'
     simplify' :: [Literal] -> [Literal] -> [Literal]
     simplify' [] ans = ans
-    simplify' (x@(PS ps) : xs) ans =
-        case find (getPS .> (== ps)) xs of
-            Nothing        -> simplify' xs (x : ans)
-            Just (PS _)    -> simplify' xs ans
-            Just (NegPS _) -> []
-    simplify' (x@(NegPS ps) : xs) ans =
-        case find (getPS .> (== ps)) xs of
-            Nothing        -> simplify' xs (x : ans)
-            Just (NegPS _) -> simplify' xs ans
-            Just (PS _)    -> []
+    simplify' (x : xs) ans =
+        case findLiter x xs of
+            Nothing    -> simplify' xs (x : ans)
+            Just True  -> simplify' xs ans
+            Just False -> []
+    isPositive :: Liter -> Bool
+    isPositive (PS _) = True
+    isPositive (NegPS _) = False
+    xor :: Bool -> Bool -> Bool
+    x `xor` y = (x && y) || (not x && not y)
+    findLiter :: Liter -> [Liter] -> Maybe Bool
+    findLiter liter liters = let ps = getPS liter in
+        case find (getPS .> (== ps)) liters of
+            Nothing  -> Nothing
+            Just ps' -> isPositive ps `xor` isPositive ps'
 
 convertToSSF :: Formula -> SSF
 convertToSSF = renameBoundVariables .> takeOutQuants .> deleteExistQuants .> constructSSF where
