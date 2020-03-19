@@ -30,11 +30,12 @@ solve (SSF quants cnf) =
     if [] `elem` cnf
         then False
     else
-        and $ solveCNF 10 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
+        and $ solveCNF 3 (renameCNF (1, (Set.fromList $ map (Set.fromList) cnf)))
 
 solveCNF :: Int -> (Int, MyCNF) -> [Bool]
 solveCNF 0 _ = [True]
 solveCNF h (n, cnf) = do
+    pTrace ("CNF: " ++ show cnf) [True]
     i <- [0..(Set.size cnf - 1)]
     j <- [(i + 1)..(Set.size cnf - 1)]
     let d1 = Set.elemAt i cnf
