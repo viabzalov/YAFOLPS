@@ -10,17 +10,13 @@ import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State
+import           Data.Bits
 import           Data.List
 import           Ssf
 
 type Replacements = [(String, Term)]
 type VarReplacements = [(String, String)]
 type ForallVars = [String]
-
-data FindLiterStatus =
-      NotFound
-    | Counter
-    | Identic
 
 (.>) :: (a -> b) -> (b -> c) -> a -> c
 f .> g = g . f
@@ -214,25 +210,14 @@ convertToCNF = formula2CNF .> simplify where
                 x' -> x' : xs'
     simplify' :: [Literal] -> [Literal] -> [Literal]
     simplify' [] ans = ans
-    simplify' (x : xs) ans =
-        case findLiter x xs of
-            NotFound -> simplify' xs (x : ans)
-            Identic  -> simplify' xs ans
-            Counter  -> []
-    isPositive :: Literal -> Bool
-    isPositive (PS _) = True
-    isPositive (NegPS _) = False
-    xor :: Bool -> Bool -> Bool
-    x `xor` y = (x && y) || (not x && not y)
-    findLiter :: Literal -> [Literal] -> FindLiterStatus
-    findLiter liter liters = let ps = getPS liter in
-        case find (getPS .> (== ps)) liters of
-            Nothing  -> NotFound
-            Just liter' ->
-                if isPositive liter `xor` isPositive liter' then
-                    Identic
+    simplify' (lit : lits) ans =
+        case find (getPS .> (== getPS lit)) lits of
+            Nothing   -> simplify' lits (lit : ans)
+            Just lit' ->
+                if isPositive lit `xor` isPositive lit' then
+                    simplify' lits ans
                 else
-                    Counter
+                    []
 
 convertToSSF :: Formula -> SSF
 convertToSSF = renameBoundVariables .> takeOutQuants .> deleteExistQuants .> constructSSF where

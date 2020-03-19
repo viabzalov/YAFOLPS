@@ -11,6 +11,10 @@ data Literal =
     | NegPS {getPS :: Symbol}
     deriving (Eq, Ord, Show)
 
+isPositive :: Literal -> Bool
+isPositive (PS _) = True
+isPositive (NegPS _) = False
+
 type Disjunct = [Literal]
 
 type Conjunct = [Literal]
