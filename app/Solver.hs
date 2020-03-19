@@ -10,11 +10,11 @@ import           Ast
 import           Ssf
 import           Unification
 
-import           Data.Map            (Map)
-import qualified Data.Map            as Map
+import           Data.Map    (Map)
+import qualified Data.Map    as Map
 import           Data.Maybe
-import           Data.Set            (Set)
-import qualified Data.Set            as Set
+import           Data.Set    (Set)
+import qualified Data.Set    as Set
 
 type Substitution = Map String Term
 
@@ -100,7 +100,7 @@ variables d = Set.unions $ Set.map (Set.unions . (map variablesOfTerm) . args . 
 
     variablesOfTerm :: Term -> Set String
     variablesOfTerm (FunctionSymbol s) = Set.unions $ map variablesOfTerm (args s)
-    variablesOfTerm (Variable name)                  = Set.singleton name
+    variablesOfTerm (Variable name)    = Set.singleton name
 
 rename :: (Int, MyDisjunct) -> (Int, MyDisjunct)
 rename (n, d) = (n', apply p d) where

@@ -23,9 +23,14 @@ unify e =
     case delete =<< (eliminate' 0) =<< check =<< swap =<< decompose e of
         Nothing -> Nothing
         Just e' ->
-            if isSubstitution e'
-                then Just $ Map.fromList $ map (\(Variable name, t) -> (name, t)) $ Set.toList e'
-            else unify e'
+            case uncurry Set.disjoint $ (\(a, b) -> (Set.unions $ map variables a, Set.fromList b)) $ unzip $ Set.toList e' of
+                False -> unify e'
+                True -> Just $ Map.fromList $ map toSubstitution' $ Set.toList e' where
+                    
+                    toSubstitution' :: (Term, Term) -> (String, Term)
+                    toSubstitution' (Variable name, t) = (name, t)
+                    toSubstitution' (t1, t2) = error "This is not substitution!"
+
 
 decompose :: Equations -> Maybe Equations
 decompose e =
@@ -82,9 +87,6 @@ eliminate' i e =
 delete :: Equations -> Maybe Equations
 delete e = Just $ Set.filter (\(k, v) -> k /= v) e
 
-isSubstitution :: Equations -> Bool
-isSubstitution e = uncurry Set.disjoint $ (\(a, b) -> (Set.fromList a, Set.fromList b)) $ unzip $ Set.toList e
-
 class Variables a where
     variables :: a -> Set Term
 
@@ -93,7 +95,7 @@ instance Variables Term where
     variables v                  = Set.singleton v
 
 instance Variables Equations where
-    variables e = uncurry Set.union $ (\(a, b) -> (Set.fromList a, Set.fromList b)) $ unzip $ Set.toList e
+    variables e = uncurry Set.union $ (\(a, b) -> (Set.unions $ map variables a, Set.unions $ map variables b)) $ unzip $ Set.toList e
 
 apply :: (Term, Term) -> Term -> Term
 apply p (FunctionSymbol s) =
