@@ -34,8 +34,8 @@ unitTests = testGroup "Unit tests"
         testCase "Law 4: (a&b)>a" $
         test "(a&b)>a" @?= Right False
     ,
-        testCase "Law 5: (a&b)>a" $
-        test "(a&b)>a" @?= Right False
+        testCase "Law 5: (a&b)>b" $
+        test "(a&b)>b" @?= Right False
     ,
         testCase "Law 6: (a>c)>((b>c)>((a|b)>c))" $
         test "(a>c)>((b>c)>((a|b)>c))" @?= Right False
